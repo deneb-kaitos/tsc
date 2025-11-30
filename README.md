@@ -8,4 +8,3 @@
 ```
 ./tsc --root <path to data root directory>
 ```
-```
