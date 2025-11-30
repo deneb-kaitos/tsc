@@ -1,10 +1,34 @@
 const std = @import("std");
 const tsc = @import("tsc");
+const argsparse = @import("argonaut");
 
 pub fn main() !void {
-    // Prints to stderr, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-    try tsc.bufferedPrint();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    const allocator = gpa.allocator();
+
+    const parser = try argsparse.newParser(allocator, "tsc", "time series experiments");
+    defer parser.deinit();
+
+    var root_path_opts = argsparse.Options{
+        .required = true,
+        .help = "path to the data directory",
+    };
+    const arg_root_path = try parser.string("r", "root", &root_path_opts);
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    _ = parser.parse(args) catch {
+        const usage_text = try parser.usage(null);
+        defer allocator.free(usage_text);
+
+        std.debug.print("{s}\n", .{usage_text});
+        std.process.exit(1);
+    };
+
+    std.debug.print("data path: '{s}'\n", .{arg_root_path.*});
 }
 
 test "simple test" {
