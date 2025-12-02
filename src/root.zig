@@ -79,7 +79,7 @@ test "run on a relative path" {
     try run(allocator, root_path, FileExtPrefix.@"%");
 }
 
-test "run on a tilda path" {
+test "fail on a tilda path" {
     const allocator = std.testing.allocator;
     const err = run(allocator, "~/from_enercon", FileExtPrefix.@"%") catch |e| e;
 
