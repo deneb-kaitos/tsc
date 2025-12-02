@@ -22,7 +22,7 @@ pub fn run(allocator: std.mem.Allocator, root_dir_path: []const u8, fileExtPrefi
         return error.EmptyRootPath;
     }
 
-    if (std.mem.startsWith(u8, root_dir_path, "~") == true) {
+    if (std.mem.startsWith(u8, root_dir_path, "~")) {
         return error.TildaPath;
     }
 
