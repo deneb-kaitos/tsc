@@ -2,11 +2,6 @@ const std = @import("std");
 const zts = @import("zts");
 const argsparse = @import("argonaut");
 
-const Action = enum {
-    transorm,
-    calc,
-};
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -22,12 +17,6 @@ pub fn main() !void {
         .help = "path to the data directory",
     };
     const arg_root_path = try parser.string("r", "root", &root_path_opts);
-
-    var actions = [_][]const u8{ @tagName(Action.transorm), @tagName(Action.calc) };
-    var actions_opts = argsparse.Options{
-        .help = "action",
-    };
-    const action = try parser.selector("o", "option", &actions, &actions_opts);
     // /options
 
     const args = try std.process.argsAlloc(allocator);
@@ -42,9 +31,8 @@ pub fn main() !void {
     };
 
     std.debug.print("data path: '{s}'\n", .{arg_root_path.*});
-    std.debug.print("action: '{s}'\n", .{action.*});
 
-    _ = try zts.run(arg_root_path.*);
+    _ = try zts.run(allocator, arg_root_path.*, zts.FileExtPrefix.@"%");
 }
 
 // test "simple test" {
