@@ -46,17 +46,17 @@ test "redis: PING/PONG" {
 
     defer c.redisFree(ctx);
 
-    const reply = c.redisCommand(ctx, PING);
-
-    if (reply == null) {
+    const reply_ptr = c.redisCommand(ctx, PING);
+    if (reply_ptr == null) {
         return error.CommandFailed;
     }
+    defer c.freeReplyObject(reply_ptr);
 
-    defer c.freeReplyObject(reply);
+    const reply = @as(*align(1) c.struct_redisReply, @ptrCast(reply_ptr.?));
+    const str_ptr = @as([*]const u8, @ptrCast(reply.str));
+    const reply_bytes = str_ptr[0..reply.len];
 
-    const reply_str = std.mem.span(reply.?.*);
+    std.debug.print("redis reply: {s}\n", .{reply_bytes});
 
-    std.debug.print("redis reply: {}\n", .{reply.?});
-
-    std.testing.expectEqual(PONG, reply.?);
+    try std.testing.expectEqualStrings(PONG, reply_bytes);
 }
