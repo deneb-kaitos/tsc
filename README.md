@@ -1,10 +1,7 @@
-# tsc
+# CoAsT NG
 
-```
-./tsc -r <path to data root directory>
-```
+`CoAsT done right`
 
+## build
 
-```
-./tsc --root <path to data root directory>
-```
+In the repository root directory run the following command: `zig build`.
