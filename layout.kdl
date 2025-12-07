@@ -1,0 +1,18 @@
+layout {
+    tab name="zig-dev" focus=true {
+        pane split_direction="vertical" {
+            pane size="80%" command="nvim" {
+                args "."
+            }
+
+            pane size="20%" split_direction="horizontal" {
+                pane name="redis-monitor" command="redis-cli" {
+                    args "monitor"
+                }
+
+                pane name="redis-cli" command="redis-cli"
+            }
+        }
+    }
+}
+
