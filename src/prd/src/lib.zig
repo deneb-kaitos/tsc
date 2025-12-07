@@ -3,52 +3,67 @@ const c = @cImport({
     @cInclude("hiredis/hiredis.h");
 });
 
-pub fn add(a: u64, b: u64) u64 {
-    return a + b;
-}
+pub const RedisErrors = error{
+    AlreadyConnected,
+    ConnectionFailed,
+};
 
-pub fn send() !void {
-    const ctx = c.redisConnect("127.0.0.1", 6379);
+pub const RedisSession = struct {
+    ip: [:0]const u8,
+    port: u16,
+    ctx: ?*c.struct_redisContext = null,
 
-    if (ctx == null) {
-        return error.ConnectFailed;
+    pub fn init(ip: [:0]const u8, port: u16) RedisSession {
+        return .{
+            .ip = ip,
+            .port = port,
+            .ctx = null,
+        };
+    }
+    pub fn deinit(self: *RedisSession) void {
+        self.disconnect();
+        self.* = undefined;
     }
 
-    if (ctx.*.err != 0) {
-        std.debug.print("redis error: {s}\n", .{ctx.*.errstr[0..]});
+    pub fn connect(self: *RedisSession) !void {
+        if (self.ctx != null) {
+            return RedisErrors.AlreadyConnected;
+        }
+
+        const raw = c.redisConnect(self.ip, @as(c_int, self.port));
+
+        if (raw == null) {
+            return RedisErrors.ConnectionFailed;
+        }
+
+        const ctx = raw.?;
+        if (ctx.*.err != 0) {
+            c.redisFree(ctx);
+
+            return RedisErrors.ConnectionFailed;
+        }
+
+        self.ctx = ctx;
     }
 
-    defer c.redisFree(ctx);
-
-    const reply_ptr = c.redisCommand(ctx, "PING");
-    if (reply_ptr == null) {
-        return error.CommandFailed;
+    pub fn disconnect(self: *RedisSession) void {
+        if (self.ctx) |ctx| {
+            c.redisFree(ctx);
+            self.ctx = null;
+        }
     }
-    defer c.freeReplyObject(reply_ptr);
-
-    const reply = @as(*align(1) c.struct_redisReply, @ptrCast(reply_ptr.?));
-    const str_ptr = @as([*]const u8, @ptrCast(reply.str));
-    const reply_bytes = str_ptr[0..reply.len];
-
-    std.debug.print("redis reply: {s}\n", .{reply_bytes});
-}
+};
 
 test "redis: PING/PONG" {
     const PING = "PING";
     const PONG = "PONG";
-    const ctx = c.redisConnect("127.0.0.1", 6379);
 
-    if (ctx == null) {
-        return error.ConnectFailed;
-    }
+    var session: RedisSession = RedisSession.init("127.0.0.1", 6379);
+    defer session.deinit();
 
-    if (ctx.*.err != 0) {
-        std.debug.print("redis error: {s}\n", .{ctx.*.errstr[0..]});
-    }
+    try session.connect();
 
-    defer c.redisFree(ctx);
-
-    const reply_ptr = c.redisCommand(ctx, PING);
+    const reply_ptr = c.redisCommand(session.ctx, PING);
     if (reply_ptr == null) {
         return error.CommandFailed;
     }
