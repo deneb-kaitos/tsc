@@ -20,15 +20,17 @@ pub fn send() !void {
 
     defer c.redisFree(ctx);
 
-    const reply = c.redisCommand(ctx, "PING");
-
-    if (reply == null) {
+    const reply_ptr = c.redisCommand(ctx, "PING");
+    if (reply_ptr == null) {
         return error.CommandFailed;
     }
+    defer c.freeReplyObject(reply_ptr);
 
-    defer c.freeReplyObject(reply);
+    const reply = @as(*align(1) c.struct_redisReply, @ptrCast(reply_ptr.?));
+    const str_ptr = @as([*]const u8, @ptrCast(reply.str));
+    const reply_bytes = str_ptr[0..reply.len];
 
-    std.debug.print("redis reply: {}\n", .{reply.?});
+    std.debug.print("redis reply: {s}\n", .{reply_bytes});
 }
 
 test "redis: PING/PONG" {
