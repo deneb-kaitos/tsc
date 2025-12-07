@@ -8,6 +8,10 @@
             .url = "https://codeberg.org/OhMyDitzzy/argonaut/archive/master.tar.gz",
             .hash = "argonaut-0.0.1-BgmCpIt6AQCUnRrUtsAg1AuaeuSE1tr7tlWpjXbDulXi",
         },
+        .zigfsm = .{
+            .url = "git+https://github.com/cryptocode/zigfsm#d4438aa9a28477bcb6f74f11e2875279aa928afd",
+            .hash = "zigfsm-0.2.0-9VW4uQY7AQBrx9lNrVJ3PNRPvAX56jJnLBFOL8-vUN25",
+        },
     },
     .paths = .{
         "build.zig",
