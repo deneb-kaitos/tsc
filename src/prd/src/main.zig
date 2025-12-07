@@ -1,12 +1,7 @@
 const std = @import("std");
 const lib = @import("lib.zig");
 
-pub fn main() !void {
-    const result = lib.add(1, 2);
-    std.debug.print("result: {}\n", .{result});
-
-    _ = try lib.send();
-}
+pub fn main() !void {}
 
 // test "simple test" {
 //     const gpa = std.testing.allocator;
