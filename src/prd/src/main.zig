@@ -1,23 +1,23 @@
 const std = @import("std");
+const okredis = @import("okredis");
 const lib = @import("lib.zig");
+const cmds = okredis.commands;
+const FixBuf = okredis.types.FixBuf;
+const OrErr = okredis.types.OrErr;
 
-pub fn main() !void {}
+pub fn main() !void {
+    const gpa = std.heap.smp_allocator;
+    const ip: []const u8 = "127.0.0.1";
+    const port: u16 = 6379;
 
-// test "simple test" {
-//     const gpa = std.testing.allocator;
-//     var list: std.ArrayList(i32) = .empty;
-//     defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-//     try list.append(gpa, 42);
-//     try std.testing.expectEqual(@as(i32, 42), list.pop());
-// }
-//
-// test "fuzz example" {
-//     const Context = struct {
-//         fn testOne(context: @This(), input: []const u8) anyerror!void {
-//             _ = context;
-//             // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-//             try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-//         }
-//     };
-//     try std.testing.fuzz(Context{}, Context.testOne, .{});
-// }
+    var api: lib.API = try lib.API.init(gpa, ip, port);
+    defer api.deinit();
+
+    try api.connect();
+
+    try api.setUserName("Markus", "Gronak");
+    const lastName = try api.getUserNameByFirstName("Markus");
+
+    std.debug.print("lastName: {s}\n", .{lastName});
+    std.debug.print("done\n", .{});
+}
