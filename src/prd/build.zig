@@ -5,20 +5,23 @@ pub fn addExecutable(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) *std.Build.Step {
-    // Project Root Detector
+    const okredis_dep = b.dependency("okredis", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const okredis_mod = okredis_dep.module("okredis");
     const mod_prd = b.createModule(.{
         .root_source_file = b.path("src/prd/src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    mod_prd.addIncludePath(.{ .cwd_relative = "/usr/local/include" });
-    mod_prd.addLibraryPath(.{ .cwd_relative = "/usr/local/lib" });
+    mod_prd.addImport("okredis", okredis_mod);
+
     const exe_prd = b.addExecutable(.{ .name = "prd", .root_module = mod_prd, .version = .{
         .major = 0,
         .minor = 0,
         .patch = 0,
     } });
-    exe_prd.linkSystemLibrary("hiredis");
 
     b.installArtifact(exe_prd);
 
@@ -36,10 +39,6 @@ pub fn addExecutable(
     const mod_tests = b.addTest(.{
         .root_module = mod_prd,
     });
-
-    mod_tests.addIncludePath(.{ .cwd_relative = "/usr/local/include" });
-    mod_tests.addLibraryPath(.{ .cwd_relative = "/usr/local/lib" });
-    mod_tests.linkSystemLibrary("hiredis");
 
     const run_mod_tests = b.addRunArtifact(mod_tests);
     const exe_tests = b.addTest(.{
