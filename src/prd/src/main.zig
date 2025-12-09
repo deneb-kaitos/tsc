@@ -14,10 +14,12 @@ pub fn main() !void {
     defer api.deinit();
 
     try api.connect();
+    defer {
+        api.disconnect();
+    }
 
     try api.setUserName("Markus", "Gronak");
     const lastName = try api.getUserNameByFirstName("Markus");
 
     std.debug.print("lastName: {s}\n", .{lastName});
-    std.debug.print("done\n", .{});
 }
