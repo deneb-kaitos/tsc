@@ -217,12 +217,40 @@ pub const API = struct {
 
     pub fn resolve_data_root(self: *API, path: []const u8) ![]const u8 {
         _ = self;
-        _ = path;
 
-        return "/resolved-data-root";
+        var buff: [2048]u8 = undefined;
+        const p = try std.fs.cwd().realpath(path, &buff);
+
+        return p;
     }
 
     pub fn mark_message_processed(self: *API, message_id: []const u8) !void {
         std.debug.print("mark_message_processed [{s}]: {s}\n", .{ self.source_stream_name, message_id });
     }
 };
+
+test "ok: resolve_data_root" {
+    const allocator: std.mem.Allocator = std.testing.allocator;
+
+    var env = try std.process.getEnvMap(allocator);
+    defer env.deinit();
+
+    const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
+    const apiConfig: APIConfig = APIConfig{
+        .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
+        .port = try std.fmt.parseInt(u16, port_str, 10),
+        .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
+        .source_stream_name = env.get("SOURCE_STREAM_NAME") orelse @panic("[ENV] SOURCE_STREAM_NAME is missing\n"),
+        .sink_stream_name = env.get("SINK_STREAM_NAME") orelse @panic("[ENV] SINK_STREAM_NAME is missing\n"),
+    };
+
+    var api: API = try API.init(allocator, apiConfig);
+    defer api.deinit();
+
+    const raw_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS/3.1/3.1_s15";
+    const expected_data_root_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS/3.1/3.1_s15";
+
+    const resolved_data_root_path: []const u8 = try api.resolve_data_root(raw_path);
+
+    try std.testing.expectEqualStrings(expected_data_root_path, resolved_data_root_path);
+}

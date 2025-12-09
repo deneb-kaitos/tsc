@@ -49,6 +49,12 @@ pub fn addExecutable(
     });
 
     const lib_run_tests = b.addRunArtifact(lib_tests);
+    lib_run_tests.setEnvironmentVariable("REDIS_IP", "127.0.0.1");
+    lib_run_tests.setEnvironmentVariable("REDIS_PORT", "6379");
+    lib_run_tests.setEnvironmentVariable("CONSUMER_GROUP_NAME", "prd");
+    lib_run_tests.setEnvironmentVariable("SOURCE_STREAM_NAME", "stream:paths");
+    lib_run_tests.setEnvironmentVariable("SINK_STREAM_NAME", "stream:data_roots");
+
     const test_step = b.step("test", "run Project Root Detector tests");
 
     test_step.dependOn(&lib_run_tests.step);
