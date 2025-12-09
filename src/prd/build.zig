@@ -36,19 +36,22 @@ pub fn addExecutable(
         run_cmd.addArgs(args);
     }
 
-    const mod_tests = b.addTest(.{
-        .root_module = mod_prd,
+    //
+    const mod_lib = b.createModule(.{
+        .root_source_file = b.path("src/prd/src/lib.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    mod_lib.addImport("okredis", okredis_mod);
+    //
+    const lib_tests = b.addTest(.{
+        .root_module = mod_lib,
     });
 
-    const run_mod_tests = b.addRunArtifact(mod_tests);
-    const exe_tests = b.addTest(.{
-        .root_module = exe_prd.root_module,
-    });
-    const run_exe_tests = b.addRunArtifact(exe_tests);
+    const lib_run_tests = b.addRunArtifact(lib_tests);
     const test_step = b.step("test", "run Project Root Detector tests");
 
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
+    test_step.dependOn(&lib_run_tests.step);
 
     return &exe_prd.step;
 }

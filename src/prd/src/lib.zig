@@ -14,6 +14,7 @@ pub const API = struct {
     wbuf: [1024]u8 = undefined,
     reader: std.Io.net.Stream.Reader = undefined,
     writer: std.Io.net.Stream.Writer = undefined,
+    is_connected: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, ip: []const u8, port: u16) !API {
         return .{
@@ -24,28 +25,32 @@ pub const API = struct {
     }
 
     pub fn deinit(self: *API) void {
-        self.connection.close(self.threaded.io());
+        self.disconnect();
         self.threaded.deinit();
     }
 
     pub fn connect(self: *API) !void {
-        const io = self.threaded.io();
+        self.connection = try self.addr.connect(self.threaded.io(), .{ .mode = .stream });
+        self.reader = self.connection.reader(self.threaded.io(), &self.rbuf);
+        self.writer = self.connection.writer(self.threaded.io(), &self.wbuf);
+        self.client = try okredis.Client.init(self.threaded.io(), &self.reader.interface, &self.writer.interface, null);
 
-        self.connection = try self.addr.connect(io, .{ .mode = .stream });
-        self.reader = self.connection.reader(io, &self.rbuf);
-        self.writer = self.connection.writer(io, &self.wbuf);
-        self.client = try okredis.Client.init(io, &self.reader.interface, &self.writer.interface, null);
+        self.is_connected = true;
     }
 
     pub fn disconnect(self: *API) void {
-        const io = self.threaded.io();
+        if (!self.is_connected) {
+            return;
+        }
 
-        self.connection.close(io);
+        self.connection.close(self.threaded.io());
         self.connection = undefined;
         self.reader = undefined;
         self.writer = undefined;
         self.rbuf = undefined;
         self.wbuf = undefined;
+
+        self.is_connected = false;
     }
 
     // API
@@ -60,7 +65,7 @@ pub const API = struct {
         switch (try self.client.send(OrErr(FixBuf(6)), command_get)) {
             .Err, .Nil => @panic("whoa?"),
             .Ok => |reply| {
-                return self.allocator.dupe(u8, reply.toSlice());
+                return try self.allocator.dupe(u8, reply.toSlice());
             },
         }
     }
@@ -71,15 +76,19 @@ test "API init/deinit" {
     const ip: []const u8 = "127.0.0.1";
     const port: u16 = 6379;
 
-    const api = try API.init(allocator, ip, port);
+    var api = try API.init(allocator, ip, port);
     defer api.deinit();
 
     try api.connect();
+    defer {
+        api.disconnect();
+    }
 
     try api.setUserName("Markus", "Gronak");
     const lastName: []const u8 = try api.getUserNameByFirstName("Markus");
+    defer {
+        allocator.free(lastName);
+    }
 
-    std.debug.print("lastName: {s}\n", .{lastName});
-
-    std.testing.expectEqualStrings("Gronak", lastName);
+    try std.testing.expectEqualStrings("Gronak", lastName);
 }
