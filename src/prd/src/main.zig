@@ -7,12 +7,17 @@ const OrErr = okredis.types.OrErr;
 
 pub fn main() !void {
     const gpa = std.heap.smp_allocator;
+    //
+    var env = try std.process.getEnvMap(gpa);
+    defer env.deinit();
+
+    const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
     const apiConfig: lib.APIConfig = lib.APIConfig{
-        .ip = "127.0.0.1",
-        .port = 6379,
-        .consumer_group = "prd",
-        .source_stream_name = "stream:paths",
-        .sink_stream_name = "stream:data_roots",
+        .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
+        .port = try std.fmt.parseInt(u16, port_str, 10),
+        .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
+        .source_stream_name = env.get("SOURCE_STREAM_NAME") orelse @panic("[ENV] SOURCE_STREAM_NAME is missing\n"),
+        .sink_stream_name = env.get("SINK_STREAM_NAME") orelse @panic("[ENV] SINK_STREAM_NAME is missing\n"),
     };
 
     var api: lib.API = try lib.API.init(gpa, apiConfig);
@@ -37,8 +42,6 @@ pub fn main() !void {
         result = try api.read_from_source();
 
         resolved_data_root = try api.resolve_data_root(result.path);
-
-        std.debug.print("[main] result:\n\tid: {s}\n\tpath: {s}\n\tresolved data root: {s}\n", .{ result.id, result.path, resolved_data_root });
 
         try api.write_to_sink(resolved_data_root);
         try api.mark_message_processed(result.id);
