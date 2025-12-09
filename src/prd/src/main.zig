@@ -7,13 +7,15 @@ const OrErr = okredis.types.OrErr;
 
 pub fn main() !void {
     const gpa = std.heap.smp_allocator;
-    const ip: []const u8 = "127.0.0.1";
-    const port: u16 = 6379;
-    //
-    const consumer_group: []const u8 = "prd";
-    const stream_name: []const u8 = "stream:paths";
+    const apiConfig: lib.APIConfig = lib.APIConfig{
+        .ip = "127.0.0.1",
+        .port = 6379,
+        .consumer_group = "prd",
+        .source_stream_name = "stream:paths",
+        .sink_stream_name = "stream:data_roots",
+    };
 
-    var api: lib.API = try lib.API.init(gpa, ip, port, consumer_group, stream_name);
+    var api: lib.API = try lib.API.init(gpa, apiConfig);
     defer api.deinit();
 
     try api.connect();
@@ -21,14 +23,24 @@ pub fn main() !void {
         api.disconnect();
     }
 
-    const result: []const u8 = try api.read_from_stream();
+    var result: lib.API.PathEntry = undefined;
     defer {
-        gpa.free(result);
+        gpa.free(result.id);
+        gpa.free(result.path);
     }
-    std.debug.print("[main] result: {s}\n", .{result});
+    var resolved_data_root: []const u8 = undefined;
+    defer {
+        gpa.free(resolved_data_root);
+    }
 
-    // try api.setUserName("Markus", "Gronak");
-    // const lastName = try api.getUserNameByFirstName("Markus");
-    //
-    // std.debug.print("lastName: {s}\n", .{lastName});
+    while (true) {
+        result = try api.read_from_source();
+
+        resolved_data_root = try api.resolve_data_root(result.path);
+
+        std.debug.print("[main] result:\n\tid: {s}\n\tpath: {s}\n\tresolved data root: {s}\n", .{ result.id, result.path, resolved_data_root });
+
+        try api.write_to_sink(resolved_data_root);
+        try api.mark_message_processed(result.id);
+    }
 }

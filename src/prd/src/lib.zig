@@ -5,6 +5,14 @@ const FixBuf = okredis.types.FixBuf;
 const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
 
+pub const APIConfig = struct {
+    ip: []const u8,
+    port: u16,
+    consumer_group: []const u8,
+    source_stream_name: []const u8,
+    sink_stream_name: []const u8,
+};
+
 pub const API = struct {
     allocator: std.mem.Allocator = undefined,
     addr: std.Io.net.IpAddress = undefined,
@@ -17,16 +25,18 @@ pub const API = struct {
     writer: std.Io.net.Stream.Writer = undefined,
     is_connected: bool = false,
     //
-    stream_name: []const u8 = undefined,
+    source_stream_name: []const u8 = undefined,
+    sink_stream_name: []const u8 = undefined,
     consumer_group: []const u8 = undefined,
 
-    pub fn init(allocator: std.mem.Allocator, ip: []const u8, port: u16, consumer_group: []const u8, stream_name: []const u8) !API {
+    pub fn init(allocator: std.mem.Allocator, cfg: APIConfig) !API {
         return .{
             .allocator = allocator,
-            .addr = try std.Io.net.IpAddress.parseIp4(ip, port),
+            .addr = try std.Io.net.IpAddress.parseIp4(cfg.ip, cfg.port),
             .threaded = std.Io.Threaded.init(allocator),
-            .consumer_group = try allocator.dupe(u8, consumer_group),
-            .stream_name = try allocator.dupe(u8, stream_name),
+            .consumer_group = try allocator.dupe(u8, cfg.consumer_group),
+            .source_stream_name = try allocator.dupe(u8, cfg.source_stream_name),
+            .sink_stream_name = try allocator.dupe(u8, cfg.sink_stream_name),
         };
     }
 
@@ -35,14 +45,15 @@ pub const API = struct {
         self.threaded.deinit();
 
         self.allocator.free(self.consumer_group);
-        self.allocator.free(self.stream_name);
+        self.allocator.free(self.source_stream_name);
+        self.allocator.free(self.sink_stream_name);
     }
 
     fn init_redis_objects(self: *API) !void {
         const result = try self.client.send(OrErr(void), .{
             "XGROUP",
             "CREATE",
-            self.stream_name,
+            self.source_stream_name,
             self.consumer_group,
             "$",
             "MKSTREAM",
@@ -99,7 +110,7 @@ pub const API = struct {
         self.is_connected = false;
     }
 
-    const PathEntry = struct {
+    pub const PathEntry = struct {
         id: []u8,
         path: []u8,
     };
@@ -113,8 +124,7 @@ pub const API = struct {
     //    2) 1) 1) "1765288150228-0"
     //          2) 1) "path"
     //             2) "/hello"
-    // API
-    pub fn read_from_stream(self: *API) ![]const u8 {
+    pub fn read_from_source(self: *API) !PathEntry {
         const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{
             "XREADGROUP",
             "GROUP",
@@ -125,7 +135,7 @@ pub const API = struct {
             "BLOCK",
             "0",
             "STREAMS",
-            self.stream_name,
+            self.source_stream_name,
             ">",
         });
         defer okredis.freeReply(reply, self.allocator);
@@ -144,7 +154,7 @@ pub const API = struct {
         if (stream_key_reply.data != .String) return error.BadKey;
         const returned_stream_name = stream_key_reply.data.String.string;
 
-        if (!std.mem.eql(u8, returned_stream_name, self.stream_name)) {
+        if (!std.mem.eql(u8, returned_stream_name, self.source_stream_name)) {
             return error.BadKey;
         }
 
@@ -193,69 +203,26 @@ pub const API = struct {
 
         if (path.len == 0) return error.MissingPath;
 
-        std.debug.print("read_from_stream: id={s} path={s}\n", .{ id, path });
+        const result: PathEntry = PathEntry{
+            .id = try self.allocator.dupe(u8, id),
+            .path = try self.allocator.dupe(u8, path),
+        };
 
-        return try self.allocator.dupe(u8, path);
+        return result;
     }
 
-    // pub fn setUserName(self: *API, firstName: []const u8, lastName: []const u8) !void {
-    //     const command_set = cmds.strings.SET.init(firstName, lastName, .NoExpire, .NoConditions);
-    //     try self.client.send(void, command_set);
-    // }
-    //
-    // pub fn getUserNameByFirstName(self: *API, firstName: []const u8) ![]const u8 {
-    //     const command_get = cmds.strings.GET.init(firstName);
-    //
-    //     switch (try self.client.send(OrErr(FixBuf(6)), command_get)) {
-    //         .Err, .Nil => @panic("whoa?"),
-    //         .Ok => |reply| {
-    //             return try self.allocator.dupe(u8, reply.toSlice());
-    //         },
-    //     }
-    // }
+    pub fn write_to_sink(self: *API, resolved_data_root: []const u8) !void {
+        std.debug.print("write_to_sink [{s}]: {s}\n", .{ self.sink_stream_name, resolved_data_root });
+    }
+
+    pub fn resolve_data_root(self: *API, path: []const u8) ![]const u8 {
+        _ = self;
+        _ = path;
+
+        return "/resolved-data-root";
+    }
+
+    pub fn mark_message_processed(self: *API, message_id: []const u8) !void {
+        std.debug.print("mark_message_processed [{s}]: {s}\n", .{ self.source_stream_name, message_id });
+    }
 };
-
-test "API: read_from_stream" {
-    const allocator = std.testing.allocator;
-    const ip: []const u8 = "127.0.0.1";
-    const port: u16 = 6379;
-    const consumer_group: []const u8 = "prd";
-    const stream_name: []const u8 = "stream:paths";
-
-    var api = try API.init(allocator, ip, port, consumer_group, stream_name);
-    defer api.deinit();
-
-    try api.connect();
-    defer {
-        api.disconnect();
-    }
-
-    _ = try api.read_from_stream();
-
-    std.debug.print("reply from read_from_stream\n", .{});
-    try std.testing.expect(true);
-}
-
-// test "API init/deinit" {
-//     const allocator = std.testing.allocator;
-//     const ip: []const u8 = "127.0.0.1";
-//     const port: u16 = 6379;
-//     const consumer_group: []const u8 = "prd";
-//     const stream_name: []const u8 = "stream:paths";
-//
-//     var api = try API.init(allocator, ip, port, consumer_group, stream_name);
-//     defer api.deinit();
-//
-//     try api.connect();
-//     defer {
-//         api.disconnect();
-//     }
-//
-//     try api.setUserName("Markus", "Gronak");
-//     const lastName: []const u8 = try api.getUserNameByFirstName("Markus");
-//     defer {
-//         allocator.free(lastName);
-//     }
-//
-//     try std.testing.expectEqualStrings("Gronak", lastName);
-// }
