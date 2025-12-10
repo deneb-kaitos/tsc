@@ -33,17 +33,22 @@ pub fn main() !void {
         gpa.free(result.id);
         gpa.free(result.path);
     }
-    var resolved_data_root: []const u8 = undefined;
+    var resolved_data_roots: lib.API.DirNameList = undefined;
     defer {
-        gpa.free(resolved_data_root);
+        for (resolved_data_roots.items) |path| {
+            gpa.free(path);
+        }
+
+        resolved_data_roots.deinit(gpa);
     }
 
     while (true) {
         result = try api.read_from_source();
 
-        resolved_data_root = try api.resolve_data_root(result.path);
+        resolved_data_roots = try api.resolve_data_roots(result.path, ".$PJ");
 
-        try api.write_to_sink(resolved_data_root);
-        try api.mark_message_processed(result.id);
+        for (resolved_data_roots.items) |resolved_data_root| {
+            try api.write_to_sink(resolved_data_root);
+        }
     }
 }
