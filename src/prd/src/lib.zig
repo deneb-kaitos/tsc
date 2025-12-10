@@ -29,6 +29,7 @@ pub const API = struct {
     source_stream_name: []const u8 = undefined,
     sink_stream_name: []const u8 = undefined,
     consumer_group: []const u8 = undefined,
+    data_root_set: []const u8 = "set:data_roots",
 
     pub fn init(allocator: std.mem.Allocator, cfg: APIConfig) !API {
         return .{
@@ -216,15 +217,32 @@ pub const API = struct {
         return result;
     }
 
+    fn should_write_to_sink(self: *API, resolved_data_root: []const u8) !bool {
+        if (!self.is_connected) {
+            return error.NotConnected;
+        }
+
+        const cmd = okredis.commands.sets.SADD.init(self.data_root_set, &[_][]const u8{resolved_data_root});
+        try cmd.validate();
+
+        const reply = try self.client.send(u64, cmd);
+
+        std.debug.print("should_write_to_sink: {}\n", .{reply});
+
+        return reply > 0;
+    }
+
     pub fn write_to_sink(self: *API, resolved_data_root: []const u8) !void {
         if (!self.is_connected) {
             return error.NotConnected;
         }
 
+        if (try should_write_to_sink(self, resolved_data_root) == false) {
+            return;
+        }
+
         const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{ "XADD", self.sink_stream_name, "*", "path", resolved_data_root });
         defer okredis.freeReply(reply, self.allocator);
-
-        std.debug.print("write_to_sink::reply {any}\n", .{reply});
     }
 
     pub const DirNameList = std.ArrayListUnmanaged([]const u8);
