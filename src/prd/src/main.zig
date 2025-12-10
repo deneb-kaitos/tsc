@@ -44,11 +44,13 @@ pub fn main() !void {
 
     while (true) {
         result = try api.read_from_source();
-
         resolved_data_roots = try api.resolve_data_roots(result.path, ".$PJ");
 
         for (resolved_data_roots.items) |resolved_data_root| {
-            try api.write_to_sink(resolved_data_root);
+            const is_written = try api.write_to_sink(resolved_data_root);
+            const status = if (is_written) "written" else "not written";
+
+            std.debug.print("{s} to {s}: {s}\n", .{ status, apiConfig.sink_stream_name, resolved_data_root });
         }
     }
 }
