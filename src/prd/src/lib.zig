@@ -4,6 +4,7 @@ const cmds = okredis.commands;
 const FixBuf = okredis.types.FixBuf;
 const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
+const FV = okredis.commands.streams.utils.FV;
 
 pub const APIConfig = struct {
     ip: []const u8,
@@ -125,6 +126,10 @@ pub const API = struct {
     //          2) 1) "path"
     //             2) "/hello"
     pub fn read_from_source(self: *API) !PathEntry {
+        if (!self.is_connected) {
+            return error.NotConnected;
+        }
+
         const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{
             "XREADGROUP",
             "GROUP",
@@ -212,24 +217,53 @@ pub const API = struct {
     }
 
     pub fn write_to_sink(self: *API, resolved_data_root: []const u8) !void {
-        std.debug.print("write_to_sink [{s}]: {s}\n", .{ self.sink_stream_name, resolved_data_root });
+        if (!self.is_connected) {
+            return error.NotConnected;
+        }
+
+        const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{ "XADD", self.sink_stream_name, "*", "path", resolved_data_root });
+        defer okredis.freeReply(reply, self.allocator);
+
+        std.debug.print("write_to_sink::reply {any}\n", .{reply});
     }
 
-    pub fn resolve_data_root(self: *API, path: []const u8) ![]const u8 {
-        _ = self;
+    pub const DirNameList = std.ArrayListUnmanaged([]const u8);
 
+    pub fn resolve_data_roots(self: *API, path: []const u8, project_file_ext: []const u8) !DirNameList {
         var buff: [2048]u8 = undefined;
         const p = try std.fs.cwd().realpath(path, &buff);
 
-        return p;
-    }
+        var dir = try std.fs.cwd().openDir(p, .{ .iterate = true });
+        defer dir.close();
 
-    pub fn mark_message_processed(self: *API, message_id: []const u8) !void {
-        std.debug.print("mark_message_processed [{s}]: {s}\n", .{ self.source_stream_name, message_id });
+        var walker = try dir.walk(self.allocator);
+        defer walker.deinit();
+
+        var result: DirNameList = DirNameList{};
+
+        var full_path: []const u8 = undefined;
+
+        while (try walker.next()) |entry| {
+            if (entry.kind != .file) {
+                continue;
+            }
+
+            if (std.mem.endsWith(u8, entry.path, project_file_ext)) {
+                if (std.fs.path.dirname(entry.path)) |dir_path| {
+                    full_path = try std.fs.path.join(self.allocator, &[_][]const u8{ path, dir_path });
+
+                    try result.append(self.allocator, try self.allocator.dupe(u8, full_path));
+
+                    self.allocator.free(full_path);
+                }
+            }
+        }
+
+        return result;
     }
 };
 
-test "ok: resolve_data_root" {
+test "ok: workflow" {
     const allocator: std.mem.Allocator = std.testing.allocator;
 
     var env = try std.process.getEnvMap(allocator);
@@ -247,10 +281,22 @@ test "ok: resolve_data_root" {
     var api: API = try API.init(allocator, apiConfig);
     defer api.deinit();
 
-    const raw_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS/3.1/3.1_s15";
-    const expected_data_root_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS/3.1/3.1_s15";
+    try api.connect();
 
-    const resolved_data_root_path: []const u8 = try api.resolve_data_root(raw_path);
+    const user_provided_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS/3.1";
 
-    try std.testing.expectEqualStrings(expected_data_root_path, resolved_data_root_path);
+    var resolved_data_root_paths: API.DirNameList = try api.resolve_data_roots(user_provided_path, ".$PJ");
+    defer {
+        for (resolved_data_root_paths.items) |item| {
+            allocator.free(item);
+        }
+
+        resolved_data_root_paths.deinit(allocator);
+    }
+
+    for (resolved_data_root_paths.items) |data_path| {
+        try api.write_to_sink(data_path);
+    }
+
+    try std.testing.expect(resolved_data_root_paths.items.len > 0);
 }
