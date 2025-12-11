@@ -5,4 +5,7 @@ pub const Redis = struct {
         pub const PATHS = "stream:paths";
         pub const PROJECT_ROOTS = "stream:project_roots";
     };
+    pub const Sets = struct {
+        pub const DATA_ROOTS = "set:data_roots";
+    };
 };
