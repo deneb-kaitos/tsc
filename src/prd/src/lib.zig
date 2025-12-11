@@ -30,7 +30,6 @@ pub const API = struct {
     source_stream_name: []const u8 = undefined,
     sink_stream_name: []const u8 = undefined,
     consumer_group: []const u8 = undefined,
-    data_root_set: []const u8 = "set:data_roots",
 
     pub fn init(allocator: std.mem.Allocator, cfg: APIConfig) !API {
         return .{
@@ -219,7 +218,7 @@ pub const API = struct {
             return error.NotConnected;
         }
 
-        const cmd = okredis.commands.sets.SADD.init(self.data_root_set, &[_][]const u8{resolved_data_root});
+        const cmd = okredis.commands.sets.SADD.init(constants.Redis.Sets.DATA_ROOTS, &[_][]const u8{resolved_data_root});
         try cmd.validate();
 
         const reply = try self.client.send(u64, cmd);
