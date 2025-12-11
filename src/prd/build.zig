@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const CONSTANTS_MOD = "constants";
+
 pub fn addExecutable(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -16,6 +18,9 @@ pub fn addExecutable(
         .optimize = optimize,
     });
     mod_prd.addImport("okredis", okredis_mod);
+
+    const redis_consts_mod = b.modules.get(CONSTANTS_MOD) orelse @panic("redis_consts not registered at the monorepo's build.zig");
+    mod_prd.addImport(CONSTANTS_MOD, redis_consts_mod);
 
     const exe_prd = b.addExecutable(.{ .name = "prd", .root_module = mod_prd, .version = .{
         .major = 0,
@@ -43,6 +48,7 @@ pub fn addExecutable(
         .optimize = optimize,
     });
     mod_lib.addImport("okredis", okredis_mod);
+    mod_lib.addImport(CONSTANTS_MOD, redis_consts_mod);
     //
     const lib_tests = b.addTest(.{
         .root_module = mod_lib,
@@ -55,7 +61,7 @@ pub fn addExecutable(
     lib_run_tests.setEnvironmentVariable("SOURCE_STREAM_NAME", "stream:paths");
     lib_run_tests.setEnvironmentVariable("SINK_STREAM_NAME", "stream:data_roots");
 
-    const test_step = b.step("test", "run Project Root Detector tests");
+    const test_step = b.step("test_prd", "run Project Root Detector tests");
 
     test_step.dependOn(&lib_run_tests.step);
 

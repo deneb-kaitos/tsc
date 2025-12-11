@@ -1,4 +1,5 @@
 const std = @import("std");
+const constants = @import("constants");
 const okredis = @import("okredis");
 const cmds = okredis.commands;
 const FixBuf = okredis.types.FixBuf;
@@ -115,10 +116,6 @@ pub const API = struct {
     pub const PathEntry = struct {
         id: []u8,
         path: []u8,
-    };
-
-    const PathReply = struct {
-        @"stream:paths": []PathEntry,
     };
 
     // 127.0.0.1:6379> XREADGROUP group prd prd streams stream:paths >
@@ -281,10 +278,14 @@ pub const API = struct {
     }
 };
 
-test "ok: workflow" {
+test "workflow" {
     const allocator: std.mem.Allocator = std.testing.allocator;
 
-    var env = try std.process.getEnvMap(allocator);
+    var env = std.process.getEnvMap(allocator) catch |err| {
+        std.debug.print("[ERR] EnvMap: {}\n", .{err});
+
+        return err;
+    };
     defer env.deinit();
 
     const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
@@ -292,18 +293,30 @@ test "ok: workflow" {
         .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
-        .source_stream_name = env.get("SOURCE_STREAM_NAME") orelse @panic("[ENV] SOURCE_STREAM_NAME is missing\n"),
-        .sink_stream_name = env.get("SINK_STREAM_NAME") orelse @panic("[ENV] SINK_STREAM_NAME is missing\n"),
+        .source_stream_name = constants.Redis.Streams.PATHS,
+        .sink_stream_name = constants.Redis.Streams.PROJECT_ROOTS,
     };
 
-    var api: API = try API.init(allocator, apiConfig);
+    var api: API = API.init(allocator, apiConfig) catch |err| {
+        std.debug.print("[ERR] API.init(): {}\n", .{err});
+
+        return err;
+    };
     defer api.deinit();
 
-    try api.connect();
+    api.connect() catch |err| {
+        std.debug.print("[ERR] api.connect(): {}\n", .{err});
+
+        return err;
+    };
 
     const user_provided_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS";
 
-    var resolved_data_root_paths: API.DirNameList = try api.resolve_data_roots(user_provided_path, ".$PJ");
+    var resolved_data_root_paths: API.DirNameList = api.resolve_data_roots(user_provided_path, ".$PJ") catch |err| {
+        std.debug.print("[ERR] api.resolve_data_roots: {}\n", .{err});
+
+        return err;
+    };
     defer {
         for (resolved_data_root_paths.items) |item| {
             allocator.free(item);
@@ -315,7 +328,11 @@ test "ok: workflow" {
     for (resolved_data_root_paths.items) |data_path| {
         std.debug.print("processing {s}\n", .{data_path});
 
-        const is_written = try api.write_to_sink(data_path);
+        const is_written = api.write_to_sink(data_path) catch |err| {
+            std.debug.print("[ERR] api.write_to_sink: {}\n", .{err});
+
+            return err;
+        };
 
         if (is_written) {
             std.debug.print("written to sink: {s}\n", .{data_path});
@@ -324,6 +341,5 @@ test "ok: workflow" {
         }
     }
 
-    // try std.testing.expect(resolved_data_root_paths.items.len > 0);
-    try std.testing.expect(true);
+    try std.testing.expect(resolved_data_root_paths.items.len > 0);
 }

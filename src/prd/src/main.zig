@@ -1,4 +1,5 @@
 const std = @import("std");
+const constants = @import("constants");
 const okredis = @import("okredis");
 const lib = @import("lib.zig");
 const cmds = okredis.commands;
@@ -16,8 +17,8 @@ pub fn main() !void {
         .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
-        .source_stream_name = env.get("SOURCE_STREAM_NAME") orelse @panic("[ENV] SOURCE_STREAM_NAME is missing\n"),
-        .sink_stream_name = env.get("SINK_STREAM_NAME") orelse @panic("[ENV] SINK_STREAM_NAME is missing\n"),
+        .source_stream_name = constants.Redis.Streams.PATHS,
+        .sink_stream_name = constants.Redis.Streams.PROJECT_ROOTS,
     };
 
     var api: lib.API = try lib.API.init(gpa, apiConfig);
