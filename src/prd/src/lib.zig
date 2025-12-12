@@ -1,4 +1,6 @@
 const std = @import("std");
+const o = @import("build_options");
+const prd_build = @import("prd_build");
 const constants = @import("constants");
 const okredis = @import("okredis");
 const cmds = okredis.commands;
@@ -7,12 +9,17 @@ const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
 const FV = okredis.commands.streams.utils.FV;
 
+pub const SERVICE_NAME = prd_build.service_name;
+pub const SERVICE_VERSION = prd_build.service_version;
+pub const REDIS_READER_GROUP = prd_build.reader_group_name;
+
 pub const APIConfig = struct {
     ip: []const u8,
     port: u16,
     consumer_group: []const u8,
     source_stream_name: []const u8,
     sink_stream_name: []const u8,
+    log_prefix: []const u8,
 };
 
 pub const API = struct {
@@ -30,6 +37,8 @@ pub const API = struct {
     source_stream_name: []const u8 = undefined,
     sink_stream_name: []const u8 = undefined,
     consumer_group: []const u8 = undefined,
+    prefix: []const u8 = undefined,
+    log_prefix: []const u8,
 
     pub fn init(allocator: std.mem.Allocator, cfg: APIConfig) !API {
         return .{
@@ -39,6 +48,7 @@ pub const API = struct {
             .consumer_group = try allocator.dupe(u8, cfg.consumer_group),
             .source_stream_name = try allocator.dupe(u8, cfg.source_stream_name),
             .sink_stream_name = try allocator.dupe(u8, cfg.sink_stream_name),
+            .log_prefix = try allocator.dupe(u8, cfg.log_prefix),
         };
     }
 
@@ -49,6 +59,7 @@ pub const API = struct {
         self.allocator.free(self.consumer_group);
         self.allocator.free(self.source_stream_name);
         self.allocator.free(self.sink_stream_name);
+        self.allocator.free(self.log_prefix);
     }
 
     fn init_redis_objects(self: *API) !void {
@@ -63,12 +74,12 @@ pub const API = struct {
 
         switch (result) {
             .Ok => {
-                std.debug.print("OK: group [{s}] created.\n", .{self.consumer_group});
+                std.debug.print("{s}\tOK: group [{s}] created.\n", .{ self.log_prefix, self.consumer_group });
 
                 return;
             },
             .Nil => {
-                std.debug.print("Nil: group [{s}] is not created.\n", .{self.consumer_group});
+                std.debug.print("{s}\tNil: group [{s}] is not created.\n", .{ self.log_prefix, self.consumer_group });
 
                 return;
             },
@@ -76,9 +87,9 @@ pub const API = struct {
                 const code: []const u8 = err.getCode();
 
                 if (std.mem.eql(u8, code, "BUSYGROUP")) {
-                    std.debug.print("OK: not creating the {s} group - already exists\n", .{self.consumer_group});
+                    std.debug.print("{s}\tOK: not creating the [{s}] group - already exists\n", .{ self.log_prefix, self.consumer_group });
                 } else {
-                    std.debug.print("ERR: group [{s}] is not created. Code: {s}\n", .{ self.consumer_group, err.getCode() });
+                    std.debug.print("{s}\tERR: group [{s}] is not created. Code: {s}\n", .{ self.log_prefix, self.consumer_group, err.getCode() });
                 }
 
                 return;
@@ -277,6 +288,8 @@ pub const API = struct {
     }
 };
 
+pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
+
 test "workflow" {
     const allocator: std.mem.Allocator = std.testing.allocator;
 
@@ -294,17 +307,18 @@ test "workflow" {
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
         .source_stream_name = constants.Redis.Streams.PATHS,
         .sink_stream_name = constants.Redis.Streams.PROJECT_ROOTS,
+        .log_prefix = prefix,
     };
 
     var api: API = API.init(allocator, apiConfig) catch |err| {
-        std.debug.print("[ERR] API.init(): {}\n", .{err});
+        std.debug.print("{s}\t[ERR] API.init(): {}\n", .{ prefix, err });
 
         return err;
     };
     defer api.deinit();
 
     api.connect() catch |err| {
-        std.debug.print("[ERR] api.connect(): {}\n", .{err});
+        std.debug.print("{s}\t[ERR] api.connect(): {}\n", .{ prefix, err });
 
         return err;
     };
@@ -312,7 +326,7 @@ test "workflow" {
     const user_provided_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS";
 
     var resolved_data_root_paths: API.DirNameList = api.resolve_data_roots(user_provided_path, ".$PJ") catch |err| {
-        std.debug.print("[ERR] api.resolve_data_roots: {}\n", .{err});
+        std.debug.print("{s}\t[ERR] api.resolve_data_roots: {}\n", .{ prefix, err });
 
         return err;
     };
@@ -325,18 +339,18 @@ test "workflow" {
     }
 
     for (resolved_data_root_paths.items) |data_path| {
-        std.debug.print("processing {s}\n", .{data_path});
+        std.debug.print("{s}\tprocessing {s}\n", .{ prefix, data_path });
 
         const is_written = api.write_to_sink(data_path) catch |err| {
-            std.debug.print("[ERR] api.write_to_sink: {}\n", .{err});
+            std.debug.print("{s}\t[ERR] api.write_to_sink: {}\n", .{ prefix, err });
 
             return err;
         };
 
         if (is_written) {
-            std.debug.print("written to sink: {s}\n", .{data_path});
+            std.debug.print("{s}\twritten to sink: {s}\n", .{ prefix, data_path });
         } else {
-            std.debug.print("NOT written to sink: {s}\n", .{data_path});
+            std.debug.print("{s}\tNOT written to sink: {s}\n", .{ prefix, data_path });
         }
     }
 

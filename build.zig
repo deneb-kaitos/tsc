@@ -14,4 +14,11 @@ pub fn build(b: *std.Build) void {
     //
 
     _ = prd_build.addExecutable(b, target, optimize);
+
+    // individual tests
+    const prd_tests_step = prd_build.addTests(b, target, optimize);
+
+    // global test
+    const test_all = b.step("test", "run ALL tests");
+    test_all.dependOn(prd_tests_step);
 }
