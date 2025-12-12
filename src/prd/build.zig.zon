@@ -1,5 +1,6 @@
 .{
     .name = .prd,
+    .fingerprint = 0xfc660f7783fc0399,
     .version = "0.0.0",
     .minimum_zig_version = "0.16.0",
     .paths = .{

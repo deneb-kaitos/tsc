@@ -224,32 +224,82 @@ pub const API = struct {
         return result;
     }
 
-    fn should_write_to_sink(self: *API, resolved_data_root: []const u8) !bool {
+    fn which_to_write(self: *API, resolved_data_roots: DirNameList) !std.ArrayList(usize) {
         if (!self.is_connected) {
             return error.NotConnected;
         }
 
-        const cmd = okredis.commands.sets.SADD.init(constants.Redis.Sets.DATA_ROOTS, &[_][]const u8{resolved_data_root});
-        try cmd.validate();
+        var results: std.ArrayList(usize) = .empty;
 
-        const reply = try self.client.send(u64, cmd);
+        {
+            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"MULTI"});
+            defer okredis.freeReply(r, self.allocator);
+        }
 
-        return reply > 0;
+        for (resolved_data_roots.items) |item| {
+            const cmd = okredis.commands.sets.SADD.init(
+                constants.Redis.Sets.DATA_ROOTS,
+                &[_][]const u8{item},
+            );
+
+            const r = try self.client.sendAlloc(DynamicReply, self.allocator, cmd);
+            defer okredis.freeReply(r, self.allocator);
+        }
+
+        {
+            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"EXEC"});
+            defer okredis.freeReply(r, self.allocator);
+
+            switch (r.data) {
+                .List => |list| {
+                    for (list, 0..) |item, i| {
+                        const added: i64 = switch (item.data) {
+                            .Number => |v| v,
+                            else => return error.UnexpectedExecElementType,
+                        };
+                        if (added == 1) {
+                            try results.append(self.allocator, i);
+                        }
+                    }
+                },
+                else => return error.UnexpectedExecType,
+            }
+        }
+
+        return results;
     }
 
-    pub fn write_to_sink(self: *API, resolved_data_root: []const u8) !bool {
+    pub fn write_to_sink(self: *API, data_roots: DirNameList) !void {
         if (!self.is_connected) {
             return error.NotConnected;
         }
 
-        if (try should_write_to_sink(self, resolved_data_root) == false) {
-            return false;
+        var wrritten_ids = try which_to_write(self, data_roots);
+        defer wrritten_ids.deinit(self.allocator);
+
+        if (wrritten_ids.items.len == 0) {
+            return;
         }
 
-        const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{ "XADD", self.sink_stream_name, "*", "path", resolved_data_root });
-        defer okredis.freeReply(reply, self.allocator);
+        {
+            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"MULTI"});
+            defer okredis.freeReply(r, self.allocator);
+        }
 
-        return true;
+        for (wrritten_ids.items) |id| {
+            const resolved_data_root = data_roots.items[id];
+            std.debug.print("resolved_data_root to write: {s}\n", .{resolved_data_root});
+
+            const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{ "XADD", self.sink_stream_name, "*", "path", resolved_data_root });
+            defer okredis.freeReply(reply, self.allocator);
+        }
+
+        {
+            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"EXEC"});
+            defer okredis.freeReply(r, self.allocator);
+        }
+
+        return;
     }
 
     pub const DirNameList = std.ArrayListUnmanaged([]const u8);
@@ -338,21 +388,7 @@ test "workflow" {
         resolved_data_root_paths.deinit(allocator);
     }
 
-    for (resolved_data_root_paths.items) |data_path| {
-        std.debug.print("{s}\tprocessing {s}\n", .{ prefix, data_path });
-
-        const is_written = api.write_to_sink(data_path) catch |err| {
-            std.debug.print("{s}\t[ERR] api.write_to_sink: {}\n", .{ prefix, err });
-
-            return err;
-        };
-
-        if (is_written) {
-            std.debug.print("{s}\twritten to sink: {s}\n", .{ prefix, data_path });
-        } else {
-            std.debug.print("{s}\tNOT written to sink: {s}\n", .{ prefix, data_path });
-        }
-    }
+    try api.write_to_sink(resolved_data_root_paths);
 
     try std.testing.expect(resolved_data_root_paths.items.len > 0);
 }
