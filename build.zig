@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
     //
 
     _ = prd_build.addExecutable(b, target, optimize);
+    _ = prd_build.addExecutableCheck(b, target, optimize);
 
     // individual tests
     const prd_tests_step = prd_build.addTests(b, target, optimize);

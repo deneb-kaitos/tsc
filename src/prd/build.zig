@@ -76,6 +76,47 @@ pub fn addExecutable(
     return &exe_prd.step;
 }
 
+pub fn addExecutableCheck(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) *std.Build.Step {
+    const okredis_dep = b.dependency("okredis", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const okredis_mod = okredis_dep.module("okredis");
+    const mod_prd = b.createModule(.{
+        .root_source_file = b.path("src/prd/src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    mod_prd.addImport("okredis", okredis_mod);
+
+    const redis_consts_mod = b.modules.get(CONSTANTS_MOD) orelse @panic("redis_consts not registered at the monorepo's build.zig");
+    mod_prd.addImport(CONSTANTS_MOD, redis_consts_mod);
+
+    const v = zonVersion();
+    const exe_prd = b.addExecutable(.{ .name = "prd", .root_module = mod_prd, .version = .{
+        .major = v.major,
+        .minor = v.minor,
+        .patch = v.patch,
+    } });
+
+    const opts = b.addOptions();
+    opts.addOption([]const u8, "name", exe_prd.name);
+    opts.addOption(usize, "version_major", v.major);
+    opts.addOption(usize, "version_minor", v.minor);
+    opts.addOption(usize, "version_patch", v.patch);
+
+    exe_prd.root_module.addOptions("build_options", opts);
+
+    var check = b.step("check", "check if prd compiles");
+    check.dependOn(&exe_prd.step);
+
+    return check;
+}
+
 pub fn addTests(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
