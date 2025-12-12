@@ -1,10 +1,13 @@
 const std = @import("std");
+const o = @import("build_options");
 const constants = @import("constants");
 const okredis = @import("okredis");
 const lib = @import("lib.zig");
 const cmds = okredis.commands;
 const FixBuf = okredis.types.FixBuf;
 const OrErr = okredis.types.OrErr;
+
+pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
 
 pub fn main() !void {
     const gpa = std.heap.smp_allocator;
@@ -19,6 +22,7 @@ pub fn main() !void {
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
         .source_stream_name = constants.Redis.Streams.PATHS,
         .sink_stream_name = constants.Redis.Streams.PROJECT_ROOTS,
+        .log_prefix = prefix,
     };
 
     var api: lib.API = try lib.API.init(gpa, apiConfig);
@@ -34,6 +38,9 @@ pub fn main() !void {
         gpa.free(result.id);
         gpa.free(result.path);
     }
+
+    std.debug.print("{s}\tstarted\n", .{prefix});
+
     var resolved_data_roots: lib.API.DirNameList = undefined;
     defer {
         for (resolved_data_roots.items) |path| {
@@ -51,7 +58,7 @@ pub fn main() !void {
             const is_written = try api.write_to_sink(resolved_data_root);
             const status = if (is_written) "written" else "not written";
 
-            std.debug.print("{s} to {s}: {s}\n", .{ status, apiConfig.sink_stream_name, resolved_data_root });
+            std.debug.print("{s}\t{s} to {s}: {s}\n", .{ prefix, status, apiConfig.sink_stream_name, resolved_data_root });
         }
     }
 }
