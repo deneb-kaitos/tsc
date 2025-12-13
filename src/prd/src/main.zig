@@ -1,6 +1,6 @@
 const std = @import("std");
 const o = @import("build_options");
-const constants = @import("constants");
+const RedisConstants = @import("constants").RedisConstants;
 const okredis = @import("okredis");
 const lib = @import("lib.zig");
 const cmds = okredis.commands;
@@ -20,8 +20,8 @@ pub fn main() !void {
         .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
-        .source_stream_name = constants.Redis.Streams.PATHS,
-        .sink_stream_name = constants.Redis.Streams.PROJECT_ROOTS,
+        .source_stream_name = RedisConstants.Streams.paths,
+        .sink_stream_name = RedisConstants.Streams.project_roots,
         .log_prefix = prefix,
     };
 
