@@ -1,11 +1,3 @@
 const std = @import("std");
 
-pub const Redis = struct {
-    pub const Streams = struct {
-        pub const PATHS = "stream:paths";
-        pub const PROJECT_ROOTS = "stream:project_roots";
-    };
-    pub const Sets = struct {
-        pub const DATA_ROOTS = "set:data_roots";
-    };
-};
+pub const RedisConstants = @import("redis.constants.zig");
