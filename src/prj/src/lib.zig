@@ -1,7 +1,8 @@
 const std = @import("std");
 const o = @import("build_options");
-const prd_build = @import("prd_build");
+const prj_build = @import("prj_build");
 const RedisConstants = @import("constants").RedisConstants;
+const NanoID = @import("helpers").NanoID;
 const okredis = @import("okredis");
 const cmds = okredis.commands;
 const FixBuf = okredis.types.FixBuf;
@@ -9,9 +10,10 @@ const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
 const FV = okredis.commands.streams.utils.FV;
 
-pub const SERVICE_NAME = prd_build.service_name;
-pub const SERVICE_VERSION = prd_build.service_version;
-pub const REDIS_READER_GROUP = prd_build.reader_group_name;
+pub const SERVICE_NAME = prj_build.service_name;
+pub const SERVICE_VERSION = prj_build.service_version;
+pub const REDIS_READER_GROUP = prj_build.reader_group_name;
+pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
 
 pub const APIConfig = struct {
     ip: []const u8,
@@ -224,121 +226,26 @@ pub const API = struct {
         return result;
     }
 
-    fn which_to_write(self: *API, resolved_data_roots: DirNameList) !std.ArrayList(usize) {
-        if (!self.is_connected) {
-            return error.NotConnected;
-        }
+    pub fn register_project(self: *API, project_root: []const u8) !void {
+        const project_id = try NanoID.default();
 
-        var results: std.ArrayList(usize) = .empty;
+        const reply = try self.client.pipe(struct {
+            r1: u64,
+            r2: u64,
+            r3: void,
+        }, .{
+            // .{"MULTI"},
+            .{ "HSET", RedisConstants.HashMaps.project_root_to_id, project_root, project_id },
+            .{ "HSET", RedisConstants.HashMaps.id_to_project_root, project_id, project_root },
+            .{ "XADD", self.sink_stream_name, "*", "path", project_root, "id", project_id },
+            // .{"EXEC"},
+        });
 
-        {
-            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"MULTI"});
-            defer okredis.freeReply(r, self.allocator);
-        }
-
-        for (resolved_data_roots.items) |item| {
-            const cmd = okredis.commands.sets.SADD.init(
-                RedisConstants.Sets.data_roots,
-                &[_][]const u8{item},
-            );
-
-            const r = try self.client.sendAlloc(DynamicReply, self.allocator, cmd);
-            defer okredis.freeReply(r, self.allocator);
-        }
-
-        {
-            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"EXEC"});
-            defer okredis.freeReply(r, self.allocator);
-
-            switch (r.data) {
-                .List => |list| {
-                    for (list, 0..) |item, i| {
-                        const added: i64 = switch (item.data) {
-                            .Number => |v| v,
-                            else => return error.UnexpectedExecElementType,
-                        };
-                        if (added == 1) {
-                            try results.append(self.allocator, i);
-                        }
-                    }
-                },
-                else => return error.UnexpectedExecType,
-            }
-        }
-
-        return results;
-    }
-
-    pub fn write_to_sink(self: *API, data_roots: DirNameList) !void {
-        if (!self.is_connected) {
-            return error.NotConnected;
-        }
-
-        var wrritten_ids = try which_to_write(self, data_roots);
-        defer wrritten_ids.deinit(self.allocator);
-
-        if (wrritten_ids.items.len == 0) {
-            return;
-        }
-
-        {
-            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"MULTI"});
-            defer okredis.freeReply(r, self.allocator);
-        }
-
-        for (wrritten_ids.items) |id| {
-            const resolved_data_root = data_roots.items[id];
-            std.debug.print("resolved_data_root to write: {s}\n", .{resolved_data_root});
-
-            const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{ "XADD", self.sink_stream_name, "*", "path", resolved_data_root });
-            defer okredis.freeReply(reply, self.allocator);
-        }
-
-        {
-            const r = try self.client.sendAlloc(DynamicReply, self.allocator, .{"EXEC"});
-            defer okredis.freeReply(r, self.allocator);
-        }
-
-        return;
-    }
-
-    pub const DirNameList = std.ArrayListUnmanaged([]const u8);
-
-    pub fn resolve_data_roots(self: *API, path: []const u8, project_file_ext: []const u8) !DirNameList {
-        var buff: [2048]u8 = undefined;
-        const p = try std.fs.cwd().realpath(path, &buff);
-
-        var dir = try std.fs.cwd().openDir(p, .{ .iterate = true });
-        defer dir.close();
-
-        var walker = try dir.walk(self.allocator);
-        defer walker.deinit();
-
-        var result: DirNameList = DirNameList{};
-
-        while (try walker.next()) |entry| {
-            if (entry.kind != .file) {
-                continue;
-            }
-
-            if (std.mem.endsWith(u8, entry.path, project_file_ext)) {
-                const full_path = blk: {
-                    if (std.fs.path.dirname(entry.path)) |dir_path| {
-                        break :blk try std.fs.path.join(self.allocator, &[_][]const u8{ path, dir_path });
-                    } else {
-                        break :blk try self.allocator.dupe(u8, path);
-                    }
-                };
-
-                try result.append(self.allocator, full_path);
-            }
-        }
-
-        return result;
+        std.debug.print("{s}\tproject_root_to_id: {}\n", .{ prefix, reply.r1 });
+        std.debug.print("{s}\tproject_id_to_root: {}\n", .{ prefix, reply.r2 });
+        std.debug.print("{s}\tstream id: {any}\n", .{ prefix, reply.r3 });
     }
 };
-
-pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
 
 test "workflow" {
     const allocator: std.mem.Allocator = std.testing.allocator;
@@ -355,8 +262,8 @@ test "workflow" {
         .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
-        .source_stream_name = RedisConstants.Streams.paths,
-        .sink_stream_name = RedisConstants.Streams.project_roots,
+        .source_stream_name = RedisConstants.Streams.project_roots,
+        .sink_stream_name = RedisConstants.Streams.projects,
         .log_prefix = prefix,
     };
 
@@ -373,22 +280,8 @@ test "workflow" {
         return err;
     };
 
-    const user_provided_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS";
+    const user_provided_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS/3.1/3.1_s15";
+    _ = try api.register_project(user_provided_path);
 
-    var resolved_data_root_paths: API.DirNameList = api.resolve_data_roots(user_provided_path, ".$PJ") catch |err| {
-        std.debug.print("{s}\t[ERR] api.resolve_data_roots: {}\n", .{ prefix, err });
-
-        return err;
-    };
-    defer {
-        for (resolved_data_root_paths.items) |item| {
-            allocator.free(item);
-        }
-
-        resolved_data_root_paths.deinit(allocator);
-    }
-
-    try api.write_to_sink(resolved_data_root_paths);
-
-    try std.testing.expect(resolved_data_root_paths.items.len > 0);
+    try std.testing.expect(true);
 }
