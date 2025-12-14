@@ -35,35 +35,38 @@ pub fn addExecutable(
         .optimize = optimize,
     });
     const okredis_mod = okredis_dep.module("okredis");
-    const mod_prd = b.createModule(.{
-        .root_source_file = b.path("src/prd/src/main.zig"),
+    const mod_prj = b.createModule(.{
+        .root_source_file = b.path("src/prj/src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    mod_prd.addImport("okredis", okredis_mod);
+    mod_prj.addImport("okredis", okredis_mod);
 
     const redis_consts_mod = b.modules.get(CONSTANTS_MOD) orelse @panic("redis_consts not registered at the monorepo's build.zig");
-    mod_prd.addImport(CONSTANTS_MOD, redis_consts_mod);
+    mod_prj.addImport(CONSTANTS_MOD, redis_consts_mod);
+
+    const helpers_mod = b.modules.get("helpers") orelse @panic("helpers not registered at the monorepo's build.zig");
+    mod_prj.addImport("helpers", helpers_mod);
 
     const v = zonVersion();
-    const exe_prd = b.addExecutable(.{ .name = "prd", .root_module = mod_prd, .version = .{
+    const exe_prj = b.addExecutable(.{ .name = "prj", .root_module = mod_prj, .version = .{
         .major = v.major,
         .minor = v.minor,
         .patch = v.patch,
     } });
 
     const opts = b.addOptions();
-    opts.addOption([]const u8, "name", exe_prd.name);
+    opts.addOption([]const u8, "name", exe_prj.name);
     opts.addOption(usize, "version_major", v.major);
     opts.addOption(usize, "version_minor", v.minor);
     opts.addOption(usize, "version_patch", v.patch);
 
-    exe_prd.root_module.addOptions("build_options", opts);
+    exe_prj.root_module.addOptions("build_options", opts);
 
-    b.installArtifact(exe_prd);
+    b.installArtifact(exe_prj);
 
-    const run_step = b.step("run_prd", "run Project Root Detector");
-    const run_cmd = b.addRunArtifact(exe_prd);
+    const run_step = b.step("run_prj", "run Project Root Creator");
+    const run_cmd = b.addRunArtifact(exe_prj);
 
     run_step.dependOn(&run_cmd.step);
 
@@ -73,7 +76,7 @@ pub fn addExecutable(
         run_cmd.addArgs(args);
     }
 
-    return &exe_prd.step;
+    return &exe_prj.step;
 }
 
 pub fn addExecutableCheck(
@@ -86,33 +89,33 @@ pub fn addExecutableCheck(
         .optimize = optimize,
     });
     const okredis_mod = okredis_dep.module("okredis");
-    const mod_prd = b.createModule(.{
-        .root_source_file = b.path("src/prd/src/main.zig"),
+    const mod_prj = b.createModule(.{
+        .root_source_file = b.path("src/prj/src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    mod_prd.addImport("okredis", okredis_mod);
+    mod_prj.addImport("okredis", okredis_mod);
 
     const redis_consts_mod = b.modules.get(CONSTANTS_MOD) orelse @panic("redis_consts not registered at the monorepo's build.zig");
-    mod_prd.addImport(CONSTANTS_MOD, redis_consts_mod);
+    mod_prj.addImport(CONSTANTS_MOD, redis_consts_mod);
 
     const v = zonVersion();
-    const exe_prd = b.addExecutable(.{ .name = "prd", .root_module = mod_prd, .version = .{
+    const exe_prj = b.addExecutable(.{ .name = "prj", .root_module = mod_prj, .version = .{
         .major = v.major,
         .minor = v.minor,
         .patch = v.patch,
     } });
 
     const opts = b.addOptions();
-    opts.addOption([]const u8, "name", exe_prd.name);
+    opts.addOption([]const u8, "name", exe_prj.name);
     opts.addOption(usize, "version_major", v.major);
     opts.addOption(usize, "version_minor", v.minor);
     opts.addOption(usize, "version_patch", v.patch);
 
-    exe_prd.root_module.addOptions("build_options", opts);
+    exe_prj.root_module.addOptions("build_options", opts);
 
-    var check = b.step("check_prd", "check if prd compiles");
-    check.dependOn(&exe_prd.step);
+    var check = b.step("check_prj", "check if prj compiles");
+    check.dependOn(&exe_prj.step);
 
     return check;
 }
@@ -128,7 +131,7 @@ pub fn addTests(
     });
     const okredis_mod = okredis_dep.module("okredis");
     const mod_lib = b.createModule(.{
-        .root_source_file = b.path("src/prd/src/lib.zig"),
+        .root_source_file = b.path("src/prj/src/lib.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -136,6 +139,10 @@ pub fn addTests(
 
     mod_lib.addImport("okredis", okredis_mod);
     mod_lib.addImport(CONSTANTS_MOD, redis_consts_mod);
+
+    const helpers_mod = b.modules.get("helpers") orelse @panic("helpers not registered at the monorepo's build.zig");
+    mod_lib.addImport("helpers", helpers_mod);
+
     //
     const lib_tests = b.addTest(.{
         .root_module = mod_lib,
@@ -153,10 +160,10 @@ pub fn addTests(
     const lib_run_tests = b.addRunArtifact(lib_tests);
     lib_run_tests.setEnvironmentVariable("REDIS_IP", "127.0.0.1");
     lib_run_tests.setEnvironmentVariable("REDIS_PORT", "6379");
-    lib_run_tests.setEnvironmentVariable("CONSUMER_GROUP_NAME", "prd");
+    lib_run_tests.setEnvironmentVariable("CONSUMER_GROUP_NAME", "prj");
 
     const step = &lib_run_tests.step;
-    step.name = "test_prd";
+    step.name = "test_prj";
 
     return step;
 }

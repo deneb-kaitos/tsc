@@ -1,0 +1,11 @@
+.{
+    .name = .prj,
+    .version = "0.0.0",
+    .fingerprint = 0x1bde227030dd14fb,
+    .minimum_zig_version = "0.16.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
