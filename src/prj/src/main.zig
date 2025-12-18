@@ -17,7 +17,7 @@ pub fn main() !void {
 
     const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
     const apiConfig: lib.APIConfig = lib.APIConfig{
-        .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
+        .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
         .source_stream_name = RedisConstants.Streams.paths,

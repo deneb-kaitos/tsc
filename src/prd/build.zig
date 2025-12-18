@@ -45,6 +45,9 @@ pub fn addExecutable(
     const redis_consts_mod = b.modules.get(CONSTANTS_MOD) orelse @panic("redis_consts not registered at the monorepo's build.zig");
     mod_prd.addImport(CONSTANTS_MOD, redis_consts_mod);
 
+    const helpers_mod = b.modules.get("helpers") orelse @panic("helpers not registered at the monorepo's build.zig");
+    mod_prd.addImport("helpers", helpers_mod);
+
     const v = zonVersion();
     const exe_prd = b.addExecutable(.{ .name = "prd", .root_module = mod_prd, .version = .{
         .major = v.major,
@@ -133,9 +136,11 @@ pub fn addTests(
         .optimize = optimize,
     });
     const redis_consts_mod = b.modules.get(CONSTANTS_MOD) orelse @panic("redis_consts not registered at the monorepo's build.zig");
+    const helpers_mod = b.modules.get("helpers") orelse @panic("helpers not registered at the monorepo's build.zig");
 
     mod_lib.addImport("okredis", okredis_mod);
     mod_lib.addImport(CONSTANTS_MOD, redis_consts_mod);
+    mod_lib.addImport("helpers", helpers_mod);
     //
     const lib_tests = b.addTest(.{
         .root_module = mod_lib,
@@ -151,7 +156,7 @@ pub fn addTests(
     lib_tests.root_module.addOptions("build_options", opts);
 
     const lib_run_tests = b.addRunArtifact(lib_tests);
-    lib_run_tests.setEnvironmentVariable("REDIS_IP", "127.0.0.1");
+    lib_run_tests.setEnvironmentVariable("REDIS_HOST", "redis.coast.tld");
     lib_run_tests.setEnvironmentVariable("REDIS_PORT", "6379");
     lib_run_tests.setEnvironmentVariable("CONSUMER_GROUP_NAME", "prd");
 
