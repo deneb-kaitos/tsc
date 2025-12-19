@@ -8,13 +8,14 @@ const FixBuf = okredis.types.FixBuf;
 const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
 const FV = okredis.commands.streams.utils.FV;
+const host_to_ip = @import("helpers").host_to_ip;
 
 pub const SERVICE_NAME = prd_build.service_name;
 pub const SERVICE_VERSION = prd_build.service_version;
 pub const REDIS_READER_GROUP = prd_build.reader_group_name;
 
 pub const APIConfig = struct {
-    ip: []const u8,
+    hostname: []const u8,
     port: u16,
     consumer_group: []const u8,
     source_stream_name: []const u8,
@@ -24,6 +25,8 @@ pub const APIConfig = struct {
 
 pub const API = struct {
     allocator: std.mem.Allocator = undefined,
+    hostname: []const u8 = undefined,
+    port: u16 = undefined,
     addr: std.Io.net.IpAddress = undefined,
     threaded: std.Io.Threaded = undefined,
     connection: std.Io.net.Stream = undefined,
@@ -43,7 +46,8 @@ pub const API = struct {
     pub fn init(allocator: std.mem.Allocator, cfg: APIConfig) !API {
         return .{
             .allocator = allocator,
-            .addr = try std.Io.net.IpAddress.parseIp4(cfg.ip, cfg.port),
+            .hostname = cfg.hostname,
+            .port = cfg.port,
             .threaded = std.Io.Threaded.init(allocator),
             .consumer_group = try allocator.dupe(u8, cfg.consumer_group),
             .source_stream_name = try allocator.dupe(u8, cfg.source_stream_name),
@@ -98,6 +102,8 @@ pub const API = struct {
     }
 
     pub fn connect(self: *API) !void {
+        self.addr = try host_to_ip(self.hostname, self.port, &self.threaded);
+
         self.connection = try self.addr.connect(self.threaded.io(), .{ .mode = .stream });
         self.reader = self.connection.reader(self.threaded.io(), &self.rbuf);
         self.writer = self.connection.writer(self.threaded.io(), &self.wbuf);
@@ -352,7 +358,7 @@ test "workflow" {
 
     const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
     const apiConfig: APIConfig = APIConfig{
-        .ip = env.get("REDIS_IP") orelse @panic("[ENV] REDIS_IP missing\n"),
+        .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
         .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
         .source_stream_name = RedisConstants.Streams.paths,
@@ -373,7 +379,7 @@ test "workflow" {
         return err;
     };
 
-    const user_provided_path: []const u8 = "/home/dmitry/from_enercon/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS";
+    const user_provided_path: []const u8 = "/tank/projects/coast/raw_data/D03018063-1.0_2084/cct1.00_inc-2.00_shr0.40_ti13.00_ws28.00_rho1.225/07_TS";
 
     var resolved_data_root_paths: API.DirNameList = api.resolve_data_roots(user_provided_path, ".$PJ") catch |err| {
         std.debug.print("{s}\t[ERR] api.resolve_data_roots: {}\n", .{ prefix, err });

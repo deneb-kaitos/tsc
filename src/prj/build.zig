@@ -158,7 +158,7 @@ pub fn addTests(
     lib_tests.root_module.addOptions("build_options", opts);
 
     const lib_run_tests = b.addRunArtifact(lib_tests);
-    lib_run_tests.setEnvironmentVariable("REDIS_IP", "127.0.0.1");
+    lib_run_tests.setEnvironmentVariable("REDIS_HOST", "redis.coast.tld");
     lib_run_tests.setEnvironmentVariable("REDIS_PORT", "6379");
     lib_run_tests.setEnvironmentVariable("CONSUMER_GROUP_NAME", "prj");
 
