@@ -6,11 +6,13 @@ layout {
             }
 
             pane size="20%" split_direction="horizontal" {
-                pane name="redis-monitor" command="redis-cli" {
-                    args "monitor"
+                pane name="monitor" command="redis-cli" {
+                    args "-h" "redis.coast.tld" "monitor"
                 }
 
-                pane name="redis-cli" command="redis-cli"
+                pane name="cli" command="redis-cli" {
+                    args "-h" "redis.coast.tld"
+                }
             }
         }
     }
