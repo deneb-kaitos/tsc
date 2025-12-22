@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # PROVIDE: prd
-# REQUIRE: DAEMON NETWORKING
+# REQUIRE: NETWORKING netif
 # KEYWORD: shutdown
 
 . /etc/rc.subr
@@ -13,7 +13,8 @@ command="/usr/sbin/daemon"
 procname="/usr/local/sbin/${name}"
 pidfile="/var/run/${name}.pid"
 
-command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 ${prd_env:+/usr/bin/env ${prd_env}} -- ${procname} ${prd_flags}"
+# command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 ${prd_env:+/usr/bin/env ${prd_env}} -- ${procname} ${prd_flags}"
+command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 -- /usr/bin/env ${prd_env} ${procname} ${prd_flags}"
 
 load_rc_config $name
 
