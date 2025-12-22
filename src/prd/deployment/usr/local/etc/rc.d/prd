@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# PROVIDE: prd
+# REQUIRE: DAEMON NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="prd"
+rcvar="${name}_enable"
+
+command="/usr/sbin/daemon"
+procname="/usr/local/sbin/${name}"
+pidfile="/var/run/${name}.pid"
+
+command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 ${prd_env:+/usr/bin/env ${prd_env}} -- ${procname} ${prd_flags}"
+
+load_rc_config $name
+
+: ${prd_enable:=NO}
+: ${prd_flags:=""}
+
+run_rc_command "$1"
+
