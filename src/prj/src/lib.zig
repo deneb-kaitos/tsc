@@ -19,7 +19,6 @@ pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, 
 pub const APIConfig = struct {
     hostname: []const u8,
     port: u16,
-    consumer_group: []const u8,
     source_stream_name: []const u8,
     sink_stream_name: []const u8,
     log_prefix: []const u8,
@@ -41,7 +40,6 @@ pub const API = struct {
     //
     source_stream_name: []const u8 = undefined,
     sink_stream_name: []const u8 = undefined,
-    consumer_group: []const u8 = undefined,
     prefix: []const u8 = undefined,
     log_prefix: []const u8,
 
@@ -51,7 +49,6 @@ pub const API = struct {
             .hostname = cfg.hostname,
             .port = cfg.port,
             .threaded = std.Io.Threaded.init(allocator),
-            .consumer_group = try allocator.dupe(u8, cfg.consumer_group),
             .source_stream_name = try allocator.dupe(u8, cfg.source_stream_name),
             .sink_stream_name = try allocator.dupe(u8, cfg.sink_stream_name),
             .log_prefix = try allocator.dupe(u8, cfg.log_prefix),
@@ -62,7 +59,6 @@ pub const API = struct {
         self.disconnect();
         self.threaded.deinit();
 
-        self.allocator.free(self.consumer_group);
         self.allocator.free(self.source_stream_name);
         self.allocator.free(self.sink_stream_name);
         self.allocator.free(self.log_prefix);
@@ -73,19 +69,19 @@ pub const API = struct {
             "XGROUP",
             "CREATE",
             self.source_stream_name,
-            self.consumer_group,
+            o.name,
             "$",
             "MKSTREAM",
         });
 
         switch (result) {
             .Ok => {
-                std.debug.print("{s}\tOK: group [{s}] created.\n", .{ self.log_prefix, self.consumer_group });
+                std.debug.print("{s}\tOK: group [{s}] created.\n", .{ self.log_prefix, o.name });
 
                 return;
             },
             .Nil => {
-                std.debug.print("{s}\tNil: group [{s}] is not created.\n", .{ self.log_prefix, self.consumer_group });
+                std.debug.print("{s}\tNil: group [{s}] is not created.\n", .{ self.log_prefix, o.name });
 
                 return;
             },
@@ -93,9 +89,9 @@ pub const API = struct {
                 const code: []const u8 = err.getCode();
 
                 if (std.mem.eql(u8, code, "BUSYGROUP")) {
-                    std.debug.print("{s}\tOK: not creating the [{s}] group - already exists\n", .{ self.log_prefix, self.consumer_group });
+                    std.debug.print("{s}\tOK: not creating the [{s}] group - already exists\n", .{ self.log_prefix, o.name });
                 } else {
-                    std.debug.print("{s}\tERR: group [{s}] is not created. Code: {s}\n", .{ self.log_prefix, self.consumer_group, err.getCode() });
+                    std.debug.print("{s}\tERR: group [{s}] is not created. Code: {s}\n", .{ self.log_prefix, o.name, err.getCode() });
                 }
 
                 return;
@@ -149,7 +145,7 @@ pub const API = struct {
         const reply = try self.client.sendAlloc(DynamicReply, self.allocator, .{
             "XREADGROUP",
             "GROUP",
-            self.consumer_group,
+            o.name,
             prefix,
             "COUNT",
             "1",
@@ -267,7 +263,6 @@ test "workflow" {
     const apiConfig: APIConfig = APIConfig{
         .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
-        .consumer_group = env.get("CONSUMER_GROUP_NAME") orelse @panic("[ENV] CONSUMER_GROUP_NAME is missing\n"),
         .source_stream_name = RedisConstants.Streams.project_roots,
         .sink_stream_name = RedisConstants.Streams.projects,
         .log_prefix = prefix,

@@ -160,7 +160,6 @@ pub fn addTests(
     const lib_run_tests = b.addRunArtifact(lib_tests);
     lib_run_tests.setEnvironmentVariable("REDIS_HOST", "redis.coast.tld");
     lib_run_tests.setEnvironmentVariable("REDIS_PORT", "6379");
-    lib_run_tests.setEnvironmentVariable("CONSUMER_GROUP_NAME", "prj");
 
     const step = &lib_run_tests.step;
     step.name = "test_prj";

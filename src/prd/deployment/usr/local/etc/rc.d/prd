@@ -22,4 +22,3 @@ load_rc_config $name
 : ${prd_flags:=""}
 
 run_rc_command "$1"
-
