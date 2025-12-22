@@ -185,3 +185,11 @@ net.inet.ip.fw.enable=0
 net.inet6.ip6.fw.enable=0
 ```
 
+/tank/projects/coast/svc/prd/etc/resolv.conf
+
+```sh
+options inet
+options edns0
+search coast.tld
+nameserver 10.252.0.12
+```
