@@ -13,12 +13,24 @@ command="/usr/sbin/daemon"
 procname="/usr/local/sbin/${name}"
 pidfile="/var/run/${name}.pid"
 
-# command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 ${prd_env:+/usr/bin/env ${prd_env}} -- ${procname} ${prd_flags}"
-command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 -- /usr/bin/env ${prd_env} ${procname} ${prd_flags}"
-
-load_rc_config $name
+load_rc_config "$name"
 
 : ${prd_enable:=NO}
 : ${prd_flags:=""}
+: ${prd_envfile:=""}
+
+prd_load_env()
+{
+    if [ -n "$prd_envfile" ] && [ -r "$prd_envfile" ]; then
+        set -a
+        . "$prd_envfile"
+        set +a
+    fi
+}
+
+start_precmd="prd_load_env"
+
+command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 -- ${procname} ${prd_flags}"
 
 run_rc_command "$1"
+
