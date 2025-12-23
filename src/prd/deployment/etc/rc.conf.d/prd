@@ -1,4 +1,3 @@
 prd_enable="YES"
 prd_flags=""
-prd_env="REDIS_HOST=redis.coast.tld REDIS_PORT=6379"
-
+prd_envfile="/usr/local/etc/prd/.env"

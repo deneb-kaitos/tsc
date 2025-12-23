@@ -3,3 +3,5 @@ zig-out/
 *.o
 data
 *.core
+!usr/local/etc/*/.env
+
