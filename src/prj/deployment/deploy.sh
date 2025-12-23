@@ -22,6 +22,12 @@ doas cp -R "${LOCAL_ROOT}/etc/rc.conf.d/" "${JAIL_ROOT}/etc/rc.conf.d"
 echo "updating ${JAIL_ROOT}/etc/rc.conf with ${LOCAL_ROOT}/etc/rc.conf"
 doas cp "${LOCAL_ROOT}/etc/rc.conf" "${JAIL_ROOT}/etc/rc.conf"
 
+if [ ! -d "${JAIL_ROOT}/usr/local/etc/${SVC_NAME}" ]; then
+  doas mkdir -p "${JAIL_ROOT}/usr/local/etc/${SVC_NAME}"
+fi
+
+doas cp "${LOCAL_ROOT}/usr/local/etc/${SVC_NAME}/.env" "${JAIL_ROOT}/usr/local/etc/${SVC_NAME}/.env"
+
 echo "copying rc.d ${LOCAL_ROOT}/usr/local/etc/rc.d/${SVC_NAME} script to ${JAIL_ROOT}/usr/local/etc/rc.d/${SVC_NAME}"
 doas cp -f "${LOCAL_ROOT}/usr/local/etc/rc.d/${SVC_NAME}" "${JAIL_ROOT}/usr/local/etc/rc.d/${SVC_NAME}"
 doas jexec ${JAIL_NAME} chown root:wheel "/usr/local/etc/rc.d/${SVC_NAME}"

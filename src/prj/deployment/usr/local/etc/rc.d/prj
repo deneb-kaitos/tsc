@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # PROVIDE: prj
-# REQUIRE: DAEMON NETWORKING
+# REQUIRE: NETWORKING netif
 # KEYWORD: shutdown
 
 . /etc/rc.subr
@@ -13,14 +13,23 @@ command="/usr/sbin/daemon"
 procname="/usr/local/sbin/${name}"
 pidfile="/var/run/${name}.pid"
 
-# command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 ${prj_env:+/usr/bin/env ${prj_env}} -- ${procname} ${prj_flags}"
-command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 -- /usr/bin/env ${prj_env} ${procname} ${prj_flags}"
-
-
-load_rc_config $name
+load_rc_config "$name"
 
 : ${prj_enable:=NO}
 : ${prj_flags:=""}
+: ${prj_envfile:=""}
+
+prj_load_env()
+{
+    if [ -n "$prj_envfile" ] && [ -r "$prj_envfile" ]; then
+        set -a
+        . "$prj_envfile"
+        set +a
+    fi
+}
+
+start_precmd="prj_load_env"
+
+command_args="-p ${pidfile} -u _${name} -o /var/log/${name}.log -m 3 -- ${procname} ${prj_flags}"
 
 run_rc_command "$1"
-
