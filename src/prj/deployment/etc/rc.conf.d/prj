@@ -1,0 +1,4 @@
+prj_enable="YES"
+prj_flags=""
+prj_env="REDIS_HOST=redis.coast.tld REDIS_PORT=6379"
+

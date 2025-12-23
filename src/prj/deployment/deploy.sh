@@ -16,12 +16,11 @@ if ! doas jexec ${JAIL_NAME} pw usershow ${SVC_USER} >/dev/null 2>&1; then
   doas jexec ${JAIL_NAME} pw useradd ${SVC_USER} -g ${SVC_USER} -c "${SVC_NAME} service user" -d /nonexistent -s /usr/sbin/nologin
 fi
 
-if [ ! -d "${JAIL_ROOT}/usr/local/etc/rc.d" ]; then
-  doas mkdir -p "${JAIL_ROOT}/usr/local/etc/rc.d"
-  echo "created ${JAIL_ROOT}/usr/local/etc/rc.d"
-else
-  echo "${JAIL_ROOT}/usr/local/etc/rc.d already exists. skipping."
-fi
+echo "copying ${LOCAL_ROOT}/etc/rc.conf.d to ${JAIL_ROOT}/etc/rc.conf.d"
+doas cp -R "${LOCAL_ROOT}/etc/rc.conf.d/" "${JAIL_ROOT}/etc/rc.conf.d"
+
+echo "updating ${JAIL_ROOT}/etc/rc.conf with ${LOCAL_ROOT}/etc/rc.conf"
+doas cp "${LOCAL_ROOT}/etc/rc.conf" "${JAIL_ROOT}/etc/rc.conf"
 
 echo "copying rc.d ${LOCAL_ROOT}/usr/local/etc/rc.d/${SVC_NAME} script to ${JAIL_ROOT}/usr/local/etc/rc.d/${SVC_NAME}"
 doas cp -f "${LOCAL_ROOT}/usr/local/etc/rc.d/${SVC_NAME}" "${JAIL_ROOT}/usr/local/etc/rc.d/${SVC_NAME}"
