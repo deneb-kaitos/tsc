@@ -17,6 +17,8 @@ pub const REDIS_READER_GROUP = prd_build.reader_group_name;
 pub const APIConfig = struct {
     hostname: []const u8,
     port: u16,
+    username: []const u8,
+    password: []const u8,
     source_stream_name: []const u8,
     sink_stream_name: []const u8,
     log_prefix: []const u8,
@@ -26,6 +28,8 @@ pub const API = struct {
     allocator: std.mem.Allocator = undefined,
     hostname: []const u8 = undefined,
     port: u16 = undefined,
+    username: []const u8 = undefined,
+    password: []const u8 = undefined,
     addr: std.Io.net.IpAddress = undefined,
     threaded: std.Io.Threaded = undefined,
     connection: std.Io.net.Stream = undefined,
@@ -46,6 +50,8 @@ pub const API = struct {
             .allocator = allocator,
             .hostname = cfg.hostname,
             .port = cfg.port,
+            .username = try allocator.dupe(u8, cfg.username),
+            .password = try allocator.dupe(u8, cfg.password),
             .threaded = std.Io.Threaded.init(allocator),
             .source_stream_name = try allocator.dupe(u8, cfg.source_stream_name),
             .sink_stream_name = try allocator.dupe(u8, cfg.sink_stream_name),
@@ -57,6 +63,8 @@ pub const API = struct {
         self.disconnect();
         self.threaded.deinit();
 
+        self.allocator.free(self.username);
+        self.allocator.free(self.password);
         self.allocator.free(self.source_stream_name);
         self.allocator.free(self.sink_stream_name);
         self.allocator.free(self.log_prefix);
@@ -103,7 +111,7 @@ pub const API = struct {
         self.connection = try self.addr.connect(self.threaded.io(), .{ .mode = .stream });
         self.reader = self.connection.reader(self.threaded.io(), &self.rbuf);
         self.writer = self.connection.writer(self.threaded.io(), &self.wbuf);
-        self.client = try okredis.Client.init(self.threaded.io(), &self.reader.interface, &self.writer.interface, null);
+        self.client = try okredis.Client.init(self.threaded.io(), &self.reader.interface, &self.writer.interface, .{ .user = self.username, .pass = self.password });
 
         self.is_connected = true;
 
@@ -354,8 +362,10 @@ test "workflow" {
 
     const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
     const apiConfig: APIConfig = APIConfig{
-        .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n"),
+        .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST is missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
+        .username = "prd:tests:username",
+        .password = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
         .source_stream_name = RedisConstants.Streams.paths,
         .sink_stream_name = RedisConstants.Streams.project_roots,
         .log_prefix = prefix,
