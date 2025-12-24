@@ -9,17 +9,14 @@ const FixBuf = okredis.types.FixBuf;
 const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
 const FV = okredis.commands.streams.utils.FV;
-const host_to_ip = @import("helpers").host_to_ip;
+
+pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
 
 pub const SERVICE_NAME = prj_build.service_name;
 pub const SERVICE_VERSION = prj_build.service_version;
 pub const REDIS_READER_GROUP = prj_build.reader_group_name;
-pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
 
 pub const APIConfig = struct {
-    hostname: []const u8,
-    port: u16,
-    auth: okredis.Client.Auth,
     source_stream_name: []const u8,
     sink_stream_name: []const u8,
     log_prefix: []const u8,
@@ -27,9 +24,6 @@ pub const APIConfig = struct {
 
 pub const API = struct {
     allocator: std.mem.Allocator = undefined,
-    hostname: []const u8 = undefined,
-    port: u16 = undefined,
-    auth: okredis.Client.Auth = undefined,
     addr: std.Io.net.IpAddress = undefined,
     threaded: std.Io.Threaded = undefined,
     connection: std.Io.net.Stream = undefined,
@@ -48,23 +42,16 @@ pub const API = struct {
     pub fn init(allocator: std.mem.Allocator, cfg: APIConfig) !API {
         return .{
             .allocator = allocator,
-            .hostname = cfg.hostname,
-            .port = cfg.port,
-            .auth = cfg.auth,
             .threaded = std.Io.Threaded.init(allocator),
-            .source_stream_name = try allocator.dupe(u8, cfg.source_stream_name),
-            .sink_stream_name = try allocator.dupe(u8, cfg.sink_stream_name),
-            .log_prefix = try allocator.dupe(u8, cfg.log_prefix),
+            .source_stream_name = cfg.source_stream_name,
+            .sink_stream_name = cfg.sink_stream_name,
+            .log_prefix = cfg.log_prefix,
         };
     }
 
     pub fn deinit(self: *API) void {
         self.disconnect();
         self.threaded.deinit();
-
-        self.allocator.free(self.source_stream_name);
-        self.allocator.free(self.sink_stream_name);
-        self.allocator.free(self.log_prefix);
     }
 
     fn init_redis_objects(self: *API) !void {
@@ -102,17 +89,19 @@ pub const API = struct {
         }
     }
 
-    pub fn connect(self: *API) !void {
-        self.addr = try host_to_ip(self.hostname, self.port, &self.threaded);
-
-        self.connection = try self.addr.connect(self.threaded.io(), .{ .mode = .stream });
+    pub fn connect(self: *API, hostname: std.Io.net.HostName, port: u16, auth: okredis.Client.Auth) !void {
+        self.connection = try std.Io.net.HostName.connect(hostname, self.threaded.io(), port, .{
+            .mode = .stream,
+            .protocol = .tcp,
+            .timeout = .none,
+        });
         self.reader = self.connection.reader(self.threaded.io(), &self.rbuf);
         self.writer = self.connection.writer(self.threaded.io(), &self.wbuf);
         self.client = try okredis.Client.init(
             self.threaded.io(),
             &self.reader.interface,
             &self.writer.interface,
-            self.auth,
+            auth,
         );
 
         self.is_connected = true;
@@ -267,14 +256,13 @@ test "workflow" {
     };
     defer env.deinit();
 
-    const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
+    const hostname = std.Io.net.HostName{ .bytes = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n") };
+    const port: u16 = try std.fmt.parseInt(u16, env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n"), 10);
+    const auth: okredis.Client.Auth = .{
+        .user = "prj:tests:username",
+        .pass = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
+    };
     const apiConfig: APIConfig = APIConfig{
-        .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST is missing\n"),
-        .port = try std.fmt.parseInt(u16, port_str, 10),
-        .auth = .{
-            .user = "prj:tests:username",
-            .pass = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
-        },
         .source_stream_name = RedisConstants.Streams.project_roots,
         .sink_stream_name = RedisConstants.Streams.projects,
         .log_prefix = prefix,
@@ -287,7 +275,7 @@ test "workflow" {
     };
     defer api.deinit();
 
-    api.connect() catch |err| {
+    api.connect(hostname, port, auth) catch |err| {
         std.debug.print("{s}\t[ERR] api.connect(): {}\n", .{ prefix, err });
 
         return err;

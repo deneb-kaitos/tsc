@@ -15,14 +15,13 @@ pub fn main() !void {
     var env = try std.process.getEnvMap(gpa);
     defer env.deinit();
 
-    const port_str: []const u8 = env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n");
+    const hostname = std.Io.net.HostName{ .bytes = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n") };
+    const port: u16 = try std.fmt.parseInt(u16, env.get("REDIS_PORT") orelse @panic("[ENV] REDIS_PORT is missing\n"), 10);
+    const auth: okredis.Client.Auth = .{
+        .user = env.get("REDIS_USERNAME") orelse @panic("[ENV] REDIS_USERNAME is missing\n"),
+        .pass = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
+    };
     const apiConfig: lib.APIConfig = lib.APIConfig{
-        .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n"),
-        .port = try std.fmt.parseInt(u16, port_str, 10),
-        .auth = .{
-            .user = env.get("REDIS_USERNAME") orelse @panic("[ENV] REDIS_USERNAME is missing\n"),
-            .pass = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
-        },
         .source_stream_name = RedisConstants.Streams.paths,
         .sink_stream_name = RedisConstants.Streams.project_roots,
         .log_prefix = prefix,
@@ -31,7 +30,7 @@ pub fn main() !void {
     var api: lib.API = try lib.API.init(gpa, apiConfig);
     defer api.deinit();
 
-    try api.connect();
+    try api.connect(hostname, port, auth);
     defer {
         api.disconnect();
     }

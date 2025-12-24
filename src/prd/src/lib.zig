@@ -8,7 +8,6 @@ const FixBuf = okredis.types.FixBuf;
 const OrErr = okredis.types.OrErr;
 const DynamicReply = okredis.types.DynamicReply;
 const FV = okredis.commands.streams.utils.FV;
-const host_to_ip = @import("helpers").host_to_ip;
 
 pub const prefix: []const u8 = std.fmt.comptimePrint("{s}:{}.{}.{}", .{ o.name, o.version_major, o.version_minor, o.version_patch });
 
