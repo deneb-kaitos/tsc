@@ -19,8 +19,10 @@ pub fn main() !void {
     const apiConfig: lib.APIConfig = lib.APIConfig{
         .hostname = env.get("REDIS_HOST") orelse @panic("[ENV] REDIS_HOST missing\n"),
         .port = try std.fmt.parseInt(u16, port_str, 10),
-        .username = env.get("REDIS_USERNAME") orelse @panic("[ENV] REDIS_USERNAME is missing\n"),
-        .password = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
+        .auth = .{
+            .user = env.get("REDIS_USERNAME") orelse @panic("[ENV] REDIS_USERNAME is missing\n"),
+            .pass = env.get("REDIS_PASSWORD") orelse @panic("[ENV] REDIS_PASSWORD is missing\n"),
+        },
         .source_stream_name = RedisConstants.Streams.paths,
         .sink_stream_name = RedisConstants.Streams.project_roots,
         .log_prefix = prefix,
