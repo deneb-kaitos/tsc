@@ -38,7 +38,7 @@ pub fn addExecutable(
     const mod_prd = b.createModule(.{
         .root_source_file = b.path("src/prd/src/main.zig"),
         .target = target,
-        .optimize = optimize,
+        .optimize = std.builtin.OptimizeMode.ReleaseFast,
     });
     mod_prd.addImport("okredis", okredis_mod);
 

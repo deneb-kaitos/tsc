@@ -2,9 +2,15 @@ const std = @import("std");
 const prd_build = @import("src/prd/build.zig");
 const prj_build = @import("src/prj/build.zig");
 
+fn getSubprojectDir(exe: *std.Build.Step.Compile) []const u8 {
+    const root_path = exe.root_module.root_source_file.?.getPath(exe.step.owner);
+
+    return std.fs.path.dirname(root_path) orelse ".";
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = std.builtin.OptimizeMode.ReleaseFast;
 
     // common modules
     _ = b.addModule("constants", .{
@@ -19,13 +25,37 @@ pub fn build(b: *std.Build) void {
     });
     //
 
+    const update_asm = b.addUpdateSourceFiles();
     // service binaries
     // Project Root Detector
-    _ = prd_build.addExecutable(b, target, optimize);
-    // _ = prd_build.addExecutableCheck(b, target, optimize);
+    const prd_step = prd_build.addExecutable(b, target, optimize);
+    const prd_exe = prd_step.cast(std.Build.Step.Compile) orelse unreachable;
+    prd_exe.root_module.strip = true;
+
     // Project Creator
-    _ = prj_build.addExecutable(b, target, optimize);
-    // _ = prj_build.addExecutableCheck(b, target, optimize);
+    const prj_step = prj_build.addExecutable(b, target, optimize);
+    const prj_exe = prj_step.cast(std.Build.Step.Compile) orelse unreachable;
+    prj_exe.root_module.strip = true;
+
+    inline for (.{
+        .{ .exe = prd_exe, .name = "prd" },
+        .{ .exe = prj_exe, .name = "prj" },
+    }) |info| {
+        const dir = getSubprojectDir(info.exe);
+        const asm_path = b.fmt("{s}/{s}.S", .{ dir, info.name });
+        const dump_path = b.fmt("{s}/{s}.dump", .{ dir, info.name });
+        const llvm_ir_path = b.fmt("{s}/{s}.ll", .{ dir, info.name });
+
+        const objdump = b.addSystemCommand(&.{ "objdump", "-D", "-S", "-M", "intel" });
+        objdump.addFileArg(info.exe.getEmittedBin());
+        const disassembly = objdump.captureStdOut(.{});
+
+        update_asm.addCopyFileToSource(disassembly, dump_path);
+        update_asm.addCopyFileToSource(info.exe.getEmittedAsm(), asm_path);
+        update_asm.addCopyFileToSource(info.exe.getEmittedLlvmIr(), llvm_ir_path);
+    }
+
+    b.getInstallStep().dependOn(&update_asm.step);
 
     // individual tests
     const prd_tests_step = prd_build.addTests(b, target, optimize);
