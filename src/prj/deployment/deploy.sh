@@ -20,11 +20,11 @@ if ! doas jexec ${JAIL_NAME} pw usershow ${SVC_USER} >/dev/null 2>&1; then
 fi
 
 echo "deploying to host"
-doas rsync -aHAX --itemize-changes ${HOST_SRC_POINT} ${HOST_DST_POINT}
+doas rsync -r --itemize-changes ${HOST_SRC_POINT} ${HOST_DST_POINT}
 echo ""
 
 echo "deploying to jail"
-doas rsync -aHAX --itemize-changes ${JAIL_SRC_POINT} ${JAIL_DST_POINT}
+doas rsync -r --itemize-changes ${JAIL_SRC_POINT} ${JAIL_DST_POINT}
 echo ""
 
 echo "copying ${SVC_NAME} binary to ${JAIL_DST_POINT}usr/local/sbin/${SVC_NAME}"
