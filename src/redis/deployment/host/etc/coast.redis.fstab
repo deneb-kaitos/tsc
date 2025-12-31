@@ -1,0 +1,2 @@
+/tank/projects/coast/redis  /tank/projects/coast/svc/redis/var/db/redis  nullfs  rw  0  0
+
