@@ -4,4 +4,7 @@ zig-out/
 data
 *.core
 !usr/local/etc/*/.env
+*.S
+*.dump
+*.ll
 

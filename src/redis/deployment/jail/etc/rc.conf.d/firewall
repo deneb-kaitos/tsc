@@ -1,0 +1,3 @@
+firewall_enable="NO"
+firewall_type="open"
+

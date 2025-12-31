@@ -3,16 +3,13 @@
 set -e
 
 SVC_NAME="redis"
-JAIL_NAME="coast_redis"
-JAIL_ROOT="/tank/projects/coast/svc/${SVC_NAME}"
-LOCAL_ROOT="."
+HOST_SRC_POINT="./host/"
+HOST_DST_POINT="/"
+JAIL_SRC_POINT="./jail/"
+JAIL_DST_POINT="/tank/projects/coast/svc/${SVC_NAME}/"
 
-if [ ! -d "${JAIL_ROOT}/usr/local/etc/redis" ]; then
-  doas mkdir -p "${JAIL_ROOT}/usr/local/etc/redis"
-fi
-
-echo "copying ${LOCAL_ROOT}/usr/local/etc/redis/users.acl to ${JAIL_ROOT}/usr/local/etc/redis/users.acl"
-doas cp "${LOCAL_ROOT}/usr/local/etc/redis/users.acl" "${JAIL_ROOT}/usr/local/etc/redis/users.acl"
-
-echo "copying ${LOCAL_ROOT}/usr/local/etc/redis.conf to ${JAIL_ROOT}/usr/local/etc/redis.conf"
-doas cp "${LOCAL_ROOT}/usr/local/etc/redis.conf" "${JAIL_ROOT}/usr/local/etc/redis.conf"
+echo "deploying to host"
+doas rsync -aHAX --itemize-changes ${HOST_SRC_POINT} ${HOST_DST_POINT}
+echo "deploying to jail"
+doas rsync -aHAX --itemize-changes ${JAIL_SRC_POINT} ${JAIL_DST_POINT}
+echo ""
