@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-JAIL_NAME="coast_redis"
-EPAIR_BASE_NAME="cst_redis"
+JAIL_NAME="coast_ui"
+EPAIR_BASE_NAME="cst_ui"
 EPAIR_A=${EPAIR_BASE_NAME}a
 EPAIR_B=${EPAIR_BASE_NAME}b
 
@@ -14,7 +14,8 @@ ifconfig ${EPAIR_A} destroy 2>/dev/null || true
 a_raw="$(ifconfig epair create)" # e.g. epair9a
 base="${a_raw%a}"                # e.g. epair9
 
-ifconfig "${base}a" name ${EPAIR_A} up description "jailvnet:${JAIL_NAME}:host"
-ifconfig "${base}b" name ${EPAIR_B} up description "jailvnet:${JAIL_NAME}:jail"
+ifconfig "${base}a" name ${EPAIR_A} up description "jail:${JAIL_NAME}:host"
+ifconfig "${base}b" name ${EPAIR_B} up description "jail:${JAIL_NAME}:jail"
 
 ifconfig bridge50 addm ${EPAIR_A}
+

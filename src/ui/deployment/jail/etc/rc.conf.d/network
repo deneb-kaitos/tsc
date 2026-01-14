@@ -1,1 +1,1 @@
-ifconfig_cst_redisb="inet 10.0.50.1/24 up"
+ifconfig_cst_uib="inet 10.0.50.4/24 up"

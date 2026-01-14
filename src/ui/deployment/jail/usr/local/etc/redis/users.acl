@@ -1,5 +1,0 @@
-user prd reset on >f83e558350aead643f0b86fba74be487f53f44811b1590cc095296d13bd90598 -@all +multi +exec (+xreadgroup ~stream:paths) (+xgroup|create ~stream:paths) (+xadd ~stream:project_roots) (+sadd ~set:data_roots)
-user prd:tests:username reset on >f83e558350aead643f0b86fba74be487f53f44811b1590cc095296d13bd90598 -@all +multi +exec (+xreadgroup ~stream:paths) (+xgroup|create ~stream:paths) (+xadd ~stream:project_roots) (+sadd ~set:data_roots)
-
-user prj reset on >1d804989d5b1d10e98bc06ffa8d5537f0591344adebe3439baf5028a3b20f951 -@all +multi +exec (+xreadgroup ~stream:paths) (+xgroup|create ~stream:paths) (+xreadgroup ~stream:project_roots) (+xgroup|create ~stream:project_roots) (+xadd ~stream:projects) (+hset ~hm:project_root_to_id) (+hset ~hm:id_to_project_root)
-user prj:tests:username reset on >1d804989d5b1d10e98bc06ffa8d5537f0591344adebe3439baf5028a3b20f951 -@all +multi +exec (+xreadgroup ~stream:project_roots) (+xgroup|create ~stream:project_roots) (+xadd ~stream:projects) (+hset ~hm:project_root_to_id) (+hset ~hm:id_to_project_root)

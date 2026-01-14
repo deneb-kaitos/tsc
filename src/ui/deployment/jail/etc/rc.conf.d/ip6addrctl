@@ -1,0 +1,3 @@
+ip6addrctl_enable="YES"
+ip6addrctl_policy="default"
+

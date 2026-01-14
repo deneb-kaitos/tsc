@@ -14,6 +14,14 @@ doas zfs create \
   tank/projects/coast/svc/ui
 ```
 
+## install base system
+
+```sh
+```
+doas bsdinstall -j /tank/projects/coast/svc/ui
+```
+```
+
 ```
 ## deployment
 

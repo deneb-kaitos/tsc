@@ -1,12 +1,13 @@
+
 layout {
-    tab name="zig-dev" focus=true {
+    pane split_direction="horizontal" {
         pane split_direction="vertical" {
-            pane size="80%" command="nvim" {
+            pane name="code" size="80%" command="nvim" focus=true {
                 args "."
             }
 
-            pane size="20%" split_direction="horizontal" {
-                pane name="monitor" command="redis-cli" {
+            pane name="redis" size="20%" split_direction="horizontal" {
+                pane name="monitor" command="redis-cli"  {
                     args "-h" "redis.coast.tld" "monitor"
                 }
 
